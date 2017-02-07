@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.image as image
 from sklearn.utils import shuffle
 from vehicle_detection.model import Model
+from vehicle_detection.logger import Logger
 from vehicle_detection.pipeline import Pipeline
 import vehicle_detection.calibration as calibration
 from moviepy.editor import VideoFileClip
@@ -11,6 +12,9 @@ import glob
 
 def main(mode=None, source=None, out=None, log=False):
 
+
+    Logger.logging = log
+    Logger.mode = mode
     model = Model()
 
     if mode == 'train':
@@ -19,9 +23,8 @@ def main(mode=None, source=None, out=None, log=False):
         print("Loading Images...")
         X = images['filepath'].values
         y = images['class'].values.astype('uint8')
-        X = [image.imread(x) for x in X]
+        X = [image.imread(x) * 255 for x in X]
         model.fit(X, y)
-
     elif mode == 'video':
         pipeline = Pipeline()
         source_video = VideoFileClip(source)
@@ -32,6 +35,7 @@ def main(mode=None, source=None, out=None, log=False):
         pipeline = Pipeline()
         images = glob.glob('test_images/*.jpg')
         for idx, fname in enumerate(images):
+            Logger.source = fname
             img = image.imread(fname)
             img = pipeline.process(img)
 

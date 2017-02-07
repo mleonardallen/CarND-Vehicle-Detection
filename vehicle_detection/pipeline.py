@@ -1,9 +1,13 @@
 from vehicle_detection.model import Model
+from vehicle_detection.logger import Logger
 import vehicle_detection.calibration as calibration
+
 import matplotlib.pyplot as plt
+from scipy.ndimage.measurements import label
 
 import numpy as np
 import cv2
+import copy
 
 class Pipeline():
 
@@ -19,19 +23,54 @@ class Pipeline():
         width = image.shape[1]
 
         window_list = []
-        # window_list += self.get_window_list(image, window_size=48, skip_rows=5, num_rows=1.5)
-        # window_list += self.get_window_list(image, window_size=64, skip_rows=3.5, num_rows=1.5)
-        # window_list += self.get_window_list(image, window_size=96, skip_rows=2.25, num_rows=1)
+        window_list += self.get_window_list(image, window_size=48, skip_rows=5, num_rows=1.5)
+        window_list += self.get_window_list(image, window_size=64, skip_rows=3.5, num_rows=1.5)
+        window_list += self.get_window_list(image, window_size=96, skip_rows=2.25, num_rows=1)
         window_list += self.get_window_list(image, window_size=128, skip_rows=0, num_rows=3)
-        print(len(window_list))
 
-        search_windows = self.search_windows(image, window_list)
+        # windows to search
+        if Logger.logging:
+            tmp = copy.copy(image)
+            tmp = self.draw_boxes(tmp, window_list, color=(0, 0, 255))
+            Logger.save(tmp, 'window-list')
 
+        # detections
+        detections = self.search_windows(image, window_list)
+        if Logger.logging:
+            tmp = copy.copy(image)
+            tmp = self.draw_boxes(tmp, detections, color=(255, 0, 0))
+            Logger.save(tmp, 'detections')
 
-        image = self.draw_boxes(image, search_windows)
-        plt.imshow(image)
-        plt.show()
+        # heatmap
+        heatmap = np.zeros_like(image[:,:,0]).astype(np.float)
+        heatmap = self.add_heat(heatmap, detections)
 
+        if Logger.logging:
+            fig = plt.figure(figsize=(8, 6))
+            plt.imshow(heatmap, cmap='hot')
+            Logger.save(fig, 'heat-map')
+            plt.close()
+
+        # threshold
+        heatmap = self.apply_threshold(heatmap, 2)
+        if Logger.logging:
+            fig = plt.figure(figsize=(8, 6))
+            plt.imshow(heatmap, cmap='hot')
+            Logger.save(fig, 'heat-map-thresholded')
+            plt.close()
+
+        labels = label(heatmap)
+        if Logger.logging:
+            print(labels[1], 'cars found')
+            fig = plt.figure(figsize=(8, 6))
+            plt.imshow(labels[0], cmap='gray')
+            Logger.save(fig, 'labels')
+            plt.close()
+
+        image = self.draw_labeled_bboxes(image, labels)
+        Logger.save(image, 'final')
+
+        Logger.increment()
         return image
 
     def get_window_list(self, image, window_size=64, num_rows=1, skip_rows=0):
@@ -153,3 +192,33 @@ class Pipeline():
         # Return the image copy with boxes drawn
         return imcopy
 
+    def add_heat(self, heatmap, bbox_list):
+        # Iterate through list of bboxes
+        for box in bbox_list:
+            # Add += 1 for all pixels inside each bbox
+            # Assuming each "box" takes the form ((x1, y1), (x2, y2))
+            heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]] += 1
+
+        # Return updated heatmap
+        return heatmap
+
+    def apply_threshold(self, heatmap, threshold):
+        # Zero out pixels below the threshold
+        heatmap[heatmap <= threshold] = 0
+        # Return thresholded map
+        return heatmap
+
+    def draw_labeled_bboxes(self, img, labels):
+        # Iterate through all detected cars
+        for car_number in range(1, labels[1]+1):
+            # Find pixels with each car_number label value
+            nonzero = (labels[0] == car_number).nonzero()
+            # Identify x and y values of those pixels
+            nonzeroy = np.array(nonzero[0])
+            nonzerox = np.array(nonzero[1])
+            # Define a bounding box based on min/max x and y
+            bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
+            # Draw the box on the image
+            cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
+        # Return the image
+        return img
