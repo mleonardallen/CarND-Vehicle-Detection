@@ -1,184 +1,283 @@
-from sklearn import svm
 import pickle
-from skimage.feature import hog
 import cv2
 import numpy as np
-from sklearn.preprocessing import normalize
-from sklearn.model_selection import GridSearchCV
-from sklearn.model_selection import  train_test_split
-from sklearn.metrics import f1_score, make_scorer
+import matplotlib.pyplot as plt
+import time
+
+from sklearn import svm
+from skimage.feature import hog
+from sklearn.preprocessing import StandardScaler
 from sklearn.feature_selection import SelectPercentile
-from sklearn.feature_selection import chi2
+from sklearn.model_selection import  train_test_split
+from sklearn.metrics import classification_report
+from sklearn.metrics import accuracy_score
+from sklearn.ensemble import BaggingClassifier, RandomForestClassifier, AdaBoostClassifier
+from sklearn.model_selection import GridSearchCV
+
+from sklearn.pipeline import Pipeline
+
+from vehicle_detection.logger import Logger
 
 class Model():
 
-    def __init__(self):
+    def __init__(self, 
+        pixels_per_cell=8,
+        cells_per_block=2,
+        orientations=9,
+        hog_channels=[0,1,2],
+        spatial_channels=[0,1,2],
+        hist_chanels=[0,1,2],
+        hog_color_space=cv2.COLOR_RGB2YCrCb,
+        spatial_color_space=cv2.COLOR_RGB2YCrCb,
+        hist_color_space=cv2.COLOR_RGB2YCrCb,
+        use_hog=True,
+        use_hist=True,
+        use_spatial=True,
+        C=1,
+        gamma=0.001,
+        kernel='rbf'
+    ):
 
         self.feature_selection = None
-        self.model = None
+        self.pipeline = None
+
+        self.hog_color_space = hog_color_space
+        self.spatial_color_space = spatial_color_space
+        self.hist_color_space = hist_color_space
+
+        # HOG Properties
+        self.pixels_per_cell = pixels_per_cell
+        self.cells_per_block = cells_per_block
+        self.orientations = orientations
+        self.block_size = pixels_per_cell * cells_per_block
+
+        # Classifier Parameters
+        self.C = C
+        self.gamma = gamma
+        self.kernel = kernel
+        self.n_estimators = 10
+
+        # Features
+        self.use_hog = use_hog
+        self.use_hist = use_hist
+        self.use_spatial = use_spatial
+
+        self.hog_channels = hog_channels
+        self.spatial_channels = spatial_channels
+        self.hist_chanels = hist_chanels
+
+        winSize = (64,64)
+        blockStride = (8,8)
+        derivAperture = 1
+
+        winSigma = 4.
+        histogramNormType = 0
+        L2HysThreshold = 2.0000000000000001e-01
+        gammaCorrection = 0
+        nlevels = 64
+
+        self.cv2Hog = cv2.HOGDescriptor(
+            winSize,
+            (self.block_size, self.block_size),
+            blockStride,
+            (self.pixels_per_cell, self.pixels_per_cell),
+            orientations,
+            derivAperture, winSigma, histogramNormType, L2HysThreshold, gammaCorrection, nlevels
+        )
+
         self.load()
 
     def fit(self, X, y):
 
-        print("Extracting Features...")
-        X = [self.extract_features(x) for x in X]
-        print("Feature Selection...")
-        self.feature_selection = SelectPercentile(chi2, percentile=20).fit(X, y)
-        X = self.feature_selection.transform(X)
-        X -= 0.5
+        # self.visualise(X, y)
+
+        print("Extract Features...")
+        start = time.time()
+        X = [self.single_img_features(x) for x in X]
+        end = time.time()
+        print('Num Features:', len(X[0]))
+        print('time (extract features):', end - start)
+
         X_train, X_test, y_train, y_test = train_test_split(X, y)
-        print("Fitting Model...")
-        self.model = svm.SVC(kernel='rbf', C=100, gamma=0.001, verbose=True, probability=False)
-        self.model.fit(X_train, y_train)
-        print("\nScoring...")
-        accuracy = self.model.score(X_test, y_test)
-        print("Score", accuracy)
-        print("Done")
+        clf = RandomForestClassifier(n_jobs=-1, min_samples_split=5, n_estimators=50)
+        # clf = GridSearchCV(rfc, cv=10, param_grid={
+        #     'min_samples_split': [3, 5, 10, 20],
+        #     'n_estimators': [10, 50, 100]
+        # })
+        # clf.fit(X_train, y_train)
+        # print(clf.best_estimator_)
+
+        # clf = AdaBoostClassifier(base_estimator=rfc, n_estimators=3)
+
+        # clf.fit(X_train, y_train)
+        # print(clf.best_estimator_)
+
+        self.pipeline = Pipeline([
+            ('scaler', StandardScaler(with_mean=True, with_std=True)),
+            ('clf', clf)
+        ])
+        start = time.time()
+        self.pipeline.fit(X_train, y_train)
+        end = time.time()
+
+        print('\n')
+        print('time (fit):', end - start)
+
+        start = time.time()
+        y_pred = self.pipeline.predict(X_test)
+        end = time.time()
+        print('time (predict):', end - start)
+
+        print("\nClassification Report")
+        score = accuracy_score(y_test, y_pred)
+        print('Accuracy:', score)
+        target_names = ['Not Car', 'Car']
+        print(classification_report(y_test, y_pred, target_names=target_names))
 
         self.save()
 
     def predict(self, X):
-        X = [self.extract_features(x) for x in X]
-        X = self.feature_selection.transform(X)
-        X -= 0.5
+        X = [self.single_img_features(x) for x in X]
+        # X = self.feature_selection.transform(X)
 
-        return self.model.predict(X)
+        return self.pipeline.predict(X)
 
-    def grid_search(self, X, y):
-        parameters = {
-            'kernel': ['linear', 'rbf'],
-            'gamma': ['auto', 0.1, 0.001, 0.0001],
-            'C': [1, 10, 100, 1000]
-        }
-        svr = svm.SVC()
-        f1_scorer = make_scorer(f1_score)
+    def visualise(self, X, y):
 
-        model = GridSearchCV(svr, verbose=100, param_grid=parameters, scoring=f1_scorer, cv=10)
-        model.fit(X, y)
+        rows = 4
+        cols = 5
+        plt.subplots(figsize=(12, 16))
+        for idx, x in enumerate(X[:5]):
 
-        print(model.best_estimator_)
+            text = 'Car' if y[idx] == 1 else 'Not-Car'
 
-    def extract_features(self, image):
+            self.subplot(x, rows, cols, idx + 1, text)
 
-        hog = self.hog(image)
-        # hist_features = self.color_hist(image)
-        bin_spatial = self.bin_spatial(image, cvt_color=cv2.COLOR_RGB2HSV)
+            hog, hog_image = self.hog(x, visualise=True)
+            self.subplot(hog_image, rows, cols, cols + idx + 1, text=text + ' Hog')
+            plt.imshow(image)
 
-        hog = self.normalize(hog)
-        # hist_features = self.normalize(hist_features)
-        bin_spatial = self.normalize(bin_spatial)
+            spatial = self.spatial(x)
+            self.subplot(hog_image, rows, cols, cols * 2 + idx + 1, text=text + ' Hog')
+            plt.imshow(image)
 
-        features = np.concatenate((hog, bin_spatial))
 
-        return features
+        plt.show()
 
-    def normalize(self, features):
-        features = features.astype('float64').reshape(1,-1)
-        features = normalize(features, norm='max', return_norm=True)
-        features = features[0][0]
+    def subplot(self, image, row, col, idx, text = ''):
+        subplot = plt.subplot(9, 5, idx)
+        subplot.get_xaxis().set_visible(False)
+        subplot.get_yaxis().set_visible(False)
+        subplot.title.set_text(text)
 
-        return features
+    def single_img_features(self, image):
 
-    def hog(self, image, pixels_per_cell=8, cell_per_block=3, orient=9, visualise=False, feature_vector=True):
+        features = []
 
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        # hog features
+        if self.use_hog == True:
+            hog_features = self.hog(image)
+            features.append(hog_features)
 
-        return hog(
-            image,
-            orientations=orient,
-            pixels_per_cell=(pixels_per_cell, pixels_per_cell),
-            cells_per_block=(cell_per_block, cell_per_block),
-            visualise=visualise,
-            feature_vector=feature_vector,
-            transform_sqrt=True,
+        # spatial features
+        if self.use_spatial == True:
+            bin_spatial = self.bin_spatial(image)
+            features.append(bin_spatial)
+
+        # color histogram features
+        if self.use_hist == True:
+            hist_features = self.color_hist(image)
+            features.append(hist_features)
+
+        return np.concatenate(features)
+
+    def hog(self, image, visualise=False, feature_vector=True):
+
+        image = cv2.cvtColor(image, self.hog_color_space)
+        image = (image * 255).astype('uint8')
+        features = self.cv2Hog.compute(image).ravel()
+
+        if feature_vector:
+            return features
+
+        yblocks = self.get_num_blocks(image.shape[0])
+        xblocks = self.get_num_blocks(image.shape[1])
+        return np.reshape(
+            features,
+            (yblocks, xblocks, self.cells_per_block, self.cells_per_block, self.orientations)
         )
 
-    # Define a function to compute color histogram features  
-    def bin_spatial(self, img, cvt_color=None, channels=[], size=(32, 32)):
-        # Convert image to new color space (if specified)
-        if cvt_color:
-            img = cv2.cvtColor(img, cvt_color)
 
-        spat0 = img[:,:,0]
-        spat1 = img[:,:,1]
-        spat2 = img[:,:,2]
 
-        img = np.concatenate((spat1, spat2))
-        features = cv2.resize(img, size).ravel()
-        # Return the feature vector
-        return features
+        #     if visualise:
 
-    # Define a function to compute color histogram features  
-    def color_hist(self, image, nbins=32, bins_range=(0, 256)):
-        # Compute the histogram of the RGB channels separately
-        rhist = np.histogram(image[:,:,0], bins=nbins, range=bins_range)
-        ghist = np.histogram(image[:,:,1], bins=nbins, range=bins_range)
-        bhist = np.histogram(image[:,:,2], bins=nbins, range=bins_range)
-        # Generating bin centers
-        bin_edges = rhist[1]
-        bin_centers = (bin_edges[1:]  + bin_edges[0:len(bin_edges)-1])/2
-        # Concatenate the histograms into a single feature vector
-        hist_features = np.concatenate((rhist[0], ghist[0], bhist[0]))
+        #         channel_features, channel_image = hog(
+        #             image_channel,
+        #             orientations=self.orientations,
+        #             pixels_per_cell=(self.pixels_per_cell, self.pixels_per_cell),
+        #             cells_per_block=(self.cells_per_block, self.cells_per_block),
+        #             visualise=True, feature_vector=False, transform_sqrt=False
+        #         )
 
-        return hist_features
+        #         # reduce features by adding all hogs together
+        #         hog_image = np.add(hog_image, channel_image)
+        #         features = np.add(features, channel_features)
+        #     else:
+
+        #         start = time.time()
+        #         channel_features = hog(
+        #             image_channel,
+        #             orientations=self.orientations,
+        #             pixels_per_cell=(self.pixels_per_cell, self.pixels_per_cell),
+        #             cells_per_block=(self.cells_per_block, self.cells_per_block),
+        #             visualise=False, feature_vector=False, transform_sqrt=False
+        #         )
+        #         end = time.time()
+
+        #         # reduce features by adding all hogs together
+        #         features = np.add(features, channel_features)
+
+        # if feature_vector:
+        #     features = features.ravel()
+
+        # if visualise:
+        #     return features, hog_image
+
+        # return features
+
+    def get_num_blocks(self, size):
+        return (size // self.pixels_per_cell) - 1
+
+    # Define a function to compute color histogram features
+    def bin_spatial(self, image, size=(32, 32)):
+        if self.spatial_color_space:
+            image = cv2.cvtColor(image, self.spatial_color_space)
+
+        features = []
+        for channel in self.spatial_channels:
+            image_channel = image[:,:,channel]
+            features.append(cv2.resize(image_channel, size).ravel())
+
+        return np.concatenate(features)
+
+    # Define a function to compute color histogram features
+    def color_hist(self, image, nbins=32):
+        if self.hist_color_space:
+            image = cv2.cvtColor(image, self.hist_color_space)
+
+        features = []
+        for channel in self.hist_chanels:
+            channel_hist = np.histogram(image[:,:,channel], bins=nbins)
+            features.append(channel_hist[0])
+
+        return np.concatenate(features)
 
     def save(self):
-        pickle.dump(self.model, open("model.pkl", "wb"))
-        pickle.dump(self.feature_selection, open("feature_selection.pkl", "wb"))
+        pickle.dump(self.pipeline, open("pipeline.pkl", "wb"))
 
     def load(self):
         try:
-            self.model = pickle.load(open("model.pkl", "rb"))
-            self.feature_selection = pickle.load(open("feature_selection.pkl", "rb"))
+            self.pipeline = pickle.load(open("pipeline.pkl", "rb"))
         except(Exception) as e:
             pass
 
-
-    # Define a function to extract features from a single image window
-    # This function is very similar to extract_features()
-    # just for a single image rather than list of images
-    def single_img_features(self, img, color_space='RGB', spatial_size=(32, 32),
-                            hist_bins=32, orient=9, 
-                            pix_per_cell=8, cell_per_block=2, hog_channel=0,
-                            spatial_feat=True, hist_feat=True, hog_feat=True):
-        #1) Define an empty list to receive features
-        img_features = []
-        #2) Apply color conversion if other than 'RGB'
-        if color_space != 'RGB':
-            if color_space == 'HSV':
-                feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-            elif color_space == 'LUV':
-                feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2LUV)
-            elif color_space == 'HLS':
-                feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
-            elif color_space == 'YUV':
-                feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
-            elif color_space == 'YCrCb':
-                feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2YCrCb)
-        else: feature_image = np.copy(img)      
-        #3) Compute spatial features if flag is set
-        if spatial_feat == True:
-            spatial_features = bin_spatial(feature_image, size=spatial_size)
-            #4) Append features to list
-            img_features.append(spatial_features)
-        #5) Compute histogram features if flag is set
-        if hist_feat == True:
-            hist_features = color_hist(feature_image, nbins=hist_bins)
-            #6) Append features to list
-            img_features.append(hist_features)
-        #7) Compute HOG features if flag is set
-        if hog_feat == True:
-            if hog_channel == 'ALL':
-                hog_features = []
-                for channel in range(feature_image.shape[2]):
-                    hog_features.extend(get_hog_features(feature_image[:,:,channel], 
-                                        orient, pix_per_cell, cell_per_block, 
-                                        vis=False, feature_vec=True))      
-            else:
-                hog_features = get_hog_features(feature_image[:,:,hog_channel], orient, 
-                            pix_per_cell, cell_per_block, vis=False, feature_vec=True)
-            #8) Append features to list
-            img_features.append(hog_features)
-
-        #9) Return concatenated array of features
-        return np.concatenate(img_features)

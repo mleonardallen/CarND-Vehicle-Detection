@@ -2,37 +2,62 @@ import argparse
 import pandas as pd
 import numpy as np
 import matplotlib.image as image
-from sklearn.utils import shuffle
+from moviepy.editor import VideoFileClip
+import glob
+import os.path
+import time
+import cv2
+
 from vehicle_detection.model import Model
 from vehicle_detection.logger import Logger
 from vehicle_detection.pipeline import Pipeline
-import vehicle_detection.calibration as calibration
-from moviepy.editor import VideoFileClip
-import glob
 
 def main(mode=None, source=None, out=None, log=False):
 
-
     Logger.logging = log
     Logger.mode = mode
-    model = Model()
+    model = Model(
+        pixels_per_cell=8,
+        cells_per_block=2,
+        orientations=9,
+        use_hog=True,
+        use_spatial=True,
+        use_hist=False,
+        hog_color_space=cv2.COLOR_RGB2YCrCb,
+        spatial_color_space=cv2.COLOR_RGB2YUV,
+        hist_color_space=None,
+    )
 
     if mode == 'train':
         print("Reading images.csv -- contains image paths")
         images = pd.read_csv('images.csv', names=['filepath', 'class'])
-        print("Loading Images...")
-        X = images['filepath'].values
-        y = images['class'].values.astype('uint8')
-        X = [image.imread(x) * 255 for x in X]
+        X_all = images['filepath'].values
+        y_all = images['class'].values.astype('uint8')
+        print('Cars:', len(np.where(y_all == 1)[0]))
+        print('Not-Cars:', len(np.where(y_all == 0)[0]))
+
+        print("Load Images...")
+        X = []
+        y = []
+
+        start = time.time()
+        for idx, x in enumerate(X_all):
+            if os.path.isfile(x):
+                X.append(image.imread(x))
+                y.append(y_all[idx])
+        end = time.time()
+        print('time (load images):', end-start)
+
         model.fit(X, y)
     elif mode == 'video':
-        pipeline = Pipeline()
+        Logger.source = source
+        pipeline = Pipeline(model=model)
         source_video = VideoFileClip(source)
         output_video = source_video.fl_image(pipeline.process)
         output_video.write_videofile(out, audio=False)
 
     elif mode == 'test_images':
-        pipeline = Pipeline()
+        pipeline = Pipeline(model=model)
         images = glob.glob('test_images/*.jpg')
         for idx, fname in enumerate(images):
             Logger.source = fname

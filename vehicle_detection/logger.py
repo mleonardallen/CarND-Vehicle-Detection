@@ -18,7 +18,7 @@ class Logger():
     source = None # name of the input image
     frame = 0 # frame in the video
     step = 1 # step number for image pipeline
-    frames = 30
+    log_per_frames = 1
 
     @staticmethod
     def increment():
@@ -48,12 +48,12 @@ class Logger():
         assert Logger.mode is not None, "mode is not set [video, test]"
 
         # convert binary images to color before saving
-        if image_type == 'ndarray' and len(image.shape)== 2:
-            image = image.reshape(image.shape + (1,)) * 255
-            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        # if image_type == 'ndarray' and len(image.shape)== 2:
+        #     image = image.reshape(image.shape + (1,)) * 255
+        #     image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
 
         # for video mode, save every x frames
-        if Logger.mode == 'video' and Logger.frame % frames != 0:
+        if Logger.mode == 'video' and Logger.frame % Logger.log_per_frames != 0:
             return
 
         fname = 'output_images/'

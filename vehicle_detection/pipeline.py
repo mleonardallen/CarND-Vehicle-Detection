@@ -1,49 +1,105 @@
 from vehicle_detection.model import Model
 from vehicle_detection.logger import Logger
-import vehicle_detection.calibration as calibration
-
 import matplotlib.pyplot as plt
 from scipy.ndimage.measurements import label
-
+from collections import deque
 import numpy as np
 import cv2
 import copy
+import time
 
 class Pipeline():
 
-    def __init__(self):
-        self.model = Model()
+    def __init__(self, model):
+
+        self.n = 5
+        self.model = model
+
+        # todo
+        self.out_maps = []
+        self.out_boxes = []
+
+        self.heatmaps = deque(maxlen = self.n)
+
+        self.vehicles = []
+
+        self.cutoff = 400
+        self.search = [
+            {
+                'scale': 1,
+                'cells_per_step': 2,
+                'y_start_stop': [None, 4]
+            },
+            {
+                'scale': 1.5,
+                'cells_per_step': 2,
+                'y_start_stop': [0, 6]
+            },
+            {
+                'scale': 2,
+                'cells_per_step': 2,
+                'y_start_stop': [None, None]
+            }
+        ]
 
     def process(self, image):
-        # sliding window on image
 
-        image = calibration.undistort(image)
+        image = image.astype(np.float32)/255
+
+        if Logger.logging:
+            print('--- process image ---')
+
+        start_total = time.time()
 
         height = image.shape[0]
         width = image.shape[1]
+        scale = 2
 
-        window_list = []
-        window_list += self.get_window_list(image, window_size=48, skip_rows=5, num_rows=1.5)
-        window_list += self.get_window_list(image, window_size=64, skip_rows=3.5, num_rows=1.5)
-        window_list += self.get_window_list(image, window_size=96, skip_rows=2.25, num_rows=1)
-        window_list += self.get_window_list(image, window_size=128, skip_rows=0, num_rows=3)
+        image_to_search = image[self.cutoff:height,:,:]
+
+        if Logger.logging:
+            Logger.save(image, 'original')
+            Logger.save(image_to_search, 'image-to-search')
+
+        start = time.time()
+        window_list, features = [], []
+        for search in self.search:
+            find_window_list, find_features = self.get_scaled_features(
+                image_to_search,
+                scale=search.get('scale'),
+                cells_per_step=search.get('cells_per_step'),
+                y_start_stop=search.get('y_start_stop')
+            )
+            window_list += find_window_list
+            features += find_features
+        end = time.time()
+
+        if Logger.logging:
+            print('time (features):', end-start)
+
+        # Predict using your classifier
+        start = time.time()
+        preds = self.model.pipeline.predict(features)
+        end = time.time()
+
+        if Logger.logging:
+            print('time (predict):', end-start)
+
+        idxs = np.where(preds == 1)
+        hot_windows = np.array(window_list)[idxs]
 
         # windows to search
         if Logger.logging:
-            tmp = copy.copy(image)
-            tmp = self.draw_boxes(tmp, window_list, color=(0, 0, 255))
+            print('windows:', len(window_list))
+            tmp = self.draw_boxes(image, window_list, color=(0, 0, 1))
             Logger.save(tmp, 'window-list')
-
-        # detections
-        detections = self.search_windows(image, window_list)
-        if Logger.logging:
-            tmp = copy.copy(image)
-            tmp = self.draw_boxes(tmp, detections, color=(255, 0, 0))
-            Logger.save(tmp, 'detections')
+            tmp = self.draw_boxes(image, hot_windows, color=(1, 0, 0))
+            Logger.save(tmp, 'hot-windows')
 
         # heatmap
         heatmap = np.zeros_like(image[:,:,0]).astype(np.float)
-        heatmap = self.add_heat(heatmap, detections)
+        heatmap = self.add_heat(heatmap, hot_windows)
+        self.heatmaps.append(heatmap)
 
         if Logger.logging:
             fig = plt.figure(figsize=(8, 6))
@@ -51,8 +107,17 @@ class Pipeline():
             Logger.save(fig, 'heat-map')
             plt.close()
 
+        # average heatmap
+        avg_heatmap = np.sum(self.heatmaps, axis=0) / len(self.heatmaps)
+        if Logger.logging:
+            fig = plt.figure(figsize=(8, 6))
+            plt.imshow(heatmap, cmap='hot')
+            Logger.save(fig, 'average-heat-map')
+            plt.close()
+
         # threshold
         heatmap = self.apply_threshold(heatmap, 2)
+
         if Logger.logging:
             fig = plt.figure(figsize=(8, 6))
             plt.imshow(heatmap, cmap='hot')
@@ -70,115 +135,104 @@ class Pipeline():
         image = self.draw_labeled_bboxes(image, labels)
         Logger.save(image, 'final')
 
+        end_total = time.time()
+        if Logger.logging:
+            print('time (total)', end_total - start_total)
+
         Logger.increment()
-        return image
+        return image * 255
 
-    def get_window_list(self, image, window_size=64, num_rows=1, skip_rows=0):
-        height = image.shape[0]
-        width = image.shape[1]
+    def get_scaled_features(self, image, scale=1, cells_per_step=4, y_start_stop=[None, None]):
 
-        return self.slide_window(image,
-            y_start_stop=self.get_y_start_stop(height, window_size, skip_rows=skip_rows, num_rows=num_rows),
-            x_start_stop=self.get_x_start_stop(width, window_size),
-            xy_window=(window_size, window_size)
-        )
+        find_image = copy.copy(image)
+        find_image = self.scale_image(find_image, scale=scale)
 
-    def get_x_start_stop(self, width, window_size):
-        remainder = width % window_size
-        return [
-            int(remainder / 8),
-            None
-        ]
+        window_list = self.get_window_list(find_image, xy_window=(64, 64), cells_per_step=cells_per_step, y_start_stop=y_start_stop)
 
-    def get_y_start_stop(self, height, window_size, num_rows=1, skip_rows=0):
-        return [
-            height - int(window_size * (skip_rows + num_rows)),
-            height - int(window_size * skip_rows),
-        ]
+        features = []
+        for window in window_list:
+            # Extract the test window from original image
+            window_pixels = self.window_to_pixels(window)
+            window_image = image[window_pixels[0][1]:window_pixels[1][1], window_pixels[0][0]:window_pixels[1][0]]
+            features.append(self.model.single_img_features(window_image))
 
-    # Define a function that takes an image,
-    # start and stop positions in both x and y, 
-    # window size (x and y dimensions),  
-    # and overlap fraction (for both x and y)
-    def slide_window(
-        self, 
-        img, 
+        window_list = [self.window_to_draw(x, scale=scale) for x in window_list]
+
+        return window_list, features
+
+
+    def get_window_list(self, 
+        image,
         x_start_stop=[None, None],
-        y_start_stop=[None, None], 
+        y_start_stop=[None, None],
         xy_window=(64, 64),
-        xy_overlap=(0.5, 0.5)
+        cells_per_step=2
     ):
+
+        # Compute the number of steps in x/y
+        nxsteps, nysteps, xblocks_per_window, yblocks_per_window = self.get_window_steps(image.shape, xy_window, cells_per_step=cells_per_step)
+
         # If x and/or y start/stop positions not defined, set to image size
         if x_start_stop[0] == None:
             x_start_stop[0] = 0
         if x_start_stop[1] == None:
-            x_start_stop[1] = img.shape[1]
+            x_start_stop[1] = image.shape[1]
+
         if y_start_stop[0] == None:
             y_start_stop[0] = 0
         if y_start_stop[1] == None:
-            y_start_stop[1] = img.shape[0]
-
-        # Compute the span of the region to be searched
-        xspan = x_start_stop[1] - x_start_stop[0]
-        yspan = y_start_stop[1] - y_start_stop[0]
-
-        # Compute the number of pixels per step in x/y
-        nx_pix_per_step = np.int(xy_window[0]*(1 - xy_overlap[0]))
-        ny_pix_per_step = np.int(xy_window[1]*(1 - xy_overlap[1]))
-
-        # Compute the number of windows in x/y
-        nx_windows = np.int(xspan/nx_pix_per_step) - 1
-        ny_windows = np.int(yspan/ny_pix_per_step) - 1
+            y_start_stop[1] = nysteps
 
         # Initialize a list to append window positions to
         window_list = []
-        # Loop through finding x and y window positions
-        # Note: you could vectorize this step, but in practice
-        # you'll be considering windows one by one with your
-        # classifier, so looping makes sense
-        for ys in range(ny_windows):
-            for xs in range(nx_windows):
+        for xs in range(nxsteps):
+            for ys in range(y_start_stop[0], y_start_stop[1]):
+
                 # Calculate window position
-                startx = xs*nx_pix_per_step + x_start_stop[0]
-                endx = startx + xy_window[0]
-                starty = ys*ny_pix_per_step + y_start_stop[0]
-                endy = starty + xy_window[1]
+                xpos = xs*cells_per_step
+                ypos = ys*cells_per_step
+
                 # Append window position to list
-                window_list.append(((startx, starty), (endx, endy)))
+                window_list.append(((xpos, ypos), (xpos+xblocks_per_window, ypos+yblocks_per_window)))
 
         # Return the list of windows
         return window_list
 
-    # Define a function you will pass an image 
-    # and the list of windows to be searched (output of slide_windows())
-    def search_windows(self, img, windows):
+    def window_to_draw(self, window, scale=1):
+        window = self.window_to_pixels(window)
+        return (
+            (int(window[0][0] * scale), int((window[0][1] * scale) + self.cutoff)),
+            (int(window[1][0] * scale), int((window[1][1] * scale) + self.cutoff))
+        )
 
-        # Create an empty list to receive positive detection windows
+    def window_to_pixels(self, window):
+        ppc = self.model.pixels_per_cell
+        return (
+            (window[0][0] * ppc, window[0][1] * ppc),
+            ((window[1][0] + 1) * ppc, (window[1][1] + 1) * ppc)
+        )
 
-        # Iterate over all windows in the list
-        images = []
-        for window in windows:
-            # Extract the test window from original image
-            img_test = cv2.resize(img[window[0][1]:window[1][1], window[0][0]:window[1][0]], (64, 64))
-            images.append(img_test)
+    def get_window_steps(self, image_size, xy_window, cells_per_step=2):
 
-        # Predict using your classifier
-        import time
-        start = time.time()
-        preds = self.model.predict(images)
-        end = time.time()
-        total = end - start
-        print('prediction time:', total)
+        xblocks = image_size[1] // self.model.pixels_per_cell - 1
+        yblocks = image_size[0] // self.model.pixels_per_cell - 1
 
-        print('num images', len(images))
-        print('', len(images) / total)
+        features_per_block = self.model.orientations * self.model.pixels_per_cell**2
 
-        # If positive (prediction == 1) then save the window
-        idxs = np.where(preds == 1)
+        xblocks_per_window = (xy_window[1] // self.model.pixels_per_cell) - 1
+        yblocks_per_window = (xy_window[0] // self.model.pixels_per_cell) - 1
 
-        # Return windows for positive detections
-        return np.array(windows)[idxs]
+        nxsteps = (xblocks - xblocks_per_window) // cells_per_step + 1
+        nysteps = (yblocks - yblocks_per_window) // cells_per_step + 1
 
+        return nxsteps, nysteps, xblocks_per_window, yblocks_per_window
+
+    def scale_image(self, image, scale=1):
+        if scale != 1:
+            size = image.shape
+            return cv2.resize(image, (np.int(size[1] / scale), np.int(size[0] // scale)))
+
+        return image
 
     # Define a function to draw bounding boxes
     def draw_boxes(self, img, bboxes, color=(0, 0, 255), thick=2):
@@ -187,8 +241,15 @@ class Pipeline():
         imcopy = np.copy(img)
         # Iterate through the bounding boxes
         for idx, bbox in enumerate(bboxes):
+
             # Draw a rectangle given bbox coordinates
-            cv2.rectangle(imcopy, tuple(bbox[0]), tuple(bbox[1]), color, thick)
+            cv2.rectangle(
+                imcopy, 
+                tuple(bbox[0]),
+                tuple(bbox[1]),
+                color,
+                thick
+            )
         # Return the image copy with boxes drawn
         return imcopy
 
@@ -219,6 +280,6 @@ class Pipeline():
             # Define a bounding box based on min/max x and y
             bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
             # Draw the box on the image
-            cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
+            cv2.rectangle(img, (bbox[0][0], bbox[0][1]), (bbox[1][0], bbox[1][1]), (0,0,1), 6)
         # Return the image
         return img
