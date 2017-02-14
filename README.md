@@ -44,10 +44,8 @@ Here is an example using the `YCrCb` color space and HOG parameters of `orientat
 
 ####2. Explain how you settled on your final choice of HOG parameters.
 
-For orientations, I found that increasing up to `orientations=9` gave better performance with my classifier.
-
 | Parameter    | Value | Reasoning |
-| ------------ | ----- | --------- |
+| ------------ | -----:|:--------- |
 | orientations | 9     | Lowering the orientation bins down to 6 improved the speed for hog feature extraction, but I felt that the cost to accuracy was too much.  Improvements to testing accuracy plataued at 9 bins.  Increasing beyond 9 increased time needed for feature extraction. |
 | pixels per cell | 8 | TODO |
 | cells per block | 2 | TODO |
