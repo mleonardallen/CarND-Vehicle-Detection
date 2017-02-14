@@ -46,27 +46,32 @@ Here is an example using the `YCrCb` color space and HOG parameters of `orientat
 
 For orientations, I found that increasing up to `orientations=9` gave better performance with my classifier.
 
+| Parameter    | Value | Reasoning |
+| ------------ | ----- | --------- |
+| orientations | 9     | Lowering the orientation bins down to 6 improved the speed for hog feature extraction, but I felt that the cost to accuracy was too much.  Improvements to testing accuracy plataued at 9 bins.  Increasing beyond 9 increased time needed for feature extraction. |
+| pixels per cell | 8 | TODO |
+| cells per block | 2 | TODO |
+
 ####3. Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).
 
-In determining which features and color spaces to leverage, I considered two factors: prediction accuracy and time to extract features.
+In determining which features and color spaces to leverage, I considered two factors: prediction accuracy and time to extract features.  Below are my results after training each feature individually with a non-optimized classifier, and looking at feature selection performance within my pipeline.
 
-| Feature    | Feature Extraction on 1000 64x64 images | Prediction Accuracy (non-optimized classifier) |
-| ---------- | ---------------------------------------:| ----------------------------------------------:|
-| HOG        | 0.12s                                   | 0.97                                           |
-| Spatial    | 0.1s                                    | 0.97                                           |
-| Color Hist | 0.5s                                    | 0.90                                           |
+| Feature    | Feature Extraction on 1000 64x64 images | Prediction Accuracy |
+| ---------- | -----:| ----:|
+| HOG        | 0.12s | 0.97 |
+| Spatial    | 0.1s  | 0.97 |
+| Color Hist | 0.5s  | 0.95 |
 
 I opted to remove the color histogram features due to the added cost of feature extraction and relatively little value compared with the other two features.
 
 Next, I looked at updating color spaces when combining HOG and Spatial features.  After training my classifier and measuring the accuracy with each combination of color spaces, I decided I got the best accuracy with the following combination.  I did end up using two separate color spaces.  My intuition is that one color space was able to pick up on features that the other missed.  For what color spaces to include, I decided to not limit the channels for two reasons.  My first reason is because the features have very little overhead in extracting. Secondly, I opted to use a decision tree family classifier, which do not suffer from the curse of dimensionality due to their implicit ability to do feature selection.  Because of this, I was not worried about the number of features generated.
 
-| Feature | Color Space |
-| ------- | ----------- |
-| HOG     | YCrCB       |
-| Spatial | YUV         |
+| Feature | Color Space | Channels |
+| ------- | ----------- | -------- |
+| HOG     | YCrCB       | ALL      |
+| Spatial | YUV         | ALL      |
 
-
-Note: To easily save my normalization, feature selection and classifier, I found it useful to wrap everything with (sklearn.pipeline.Pipeline)[http://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html].
+Note: To easily save my normalization, feature selection and classifier, I found it useful to wrap everything with [sklearn.pipeline.Pipeline](http://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html).
 ```
 self.pipeline = Pipeline([
     ('scaler', StandardScaler(with_mean=True, with_std=True)),
@@ -111,13 +116,13 @@ After making these improvements, my prediction time reduced from around `32s` to
 
 To bring feature extraction time down, I implimented a suggestion from the project hints, running the `hog` function only once on the entire image.  However, I found this took several seconds to run on the entire image, and the effect is compounded when searching multiple scales.
 
-This led me to discover the (OpenCV Version of HOG)[http://docs.opencv.org/2.4/modules/gpu/doc/object_detection.html], and after reading that OpenCV could be up to (30x faster)[http://bbabenko.tumblr.com/post/56701676646/when-hogs-py], I decided to give it a try.  With the `OpenCV HOG` in place, I found similar results.  Extracting features for around 1000 windows now took only `0.2s`.  The bottleneck now became the classifer.
+This led me to discover the [OpenCV Version of HOG](http://docs.opencv.org/2.4/modules/gpu/doc/object_detection.html), and after reading that OpenCV could be up to [30x faster](http://bbabenko.tumblr.com/post/56701676646/when-hogs-py), I decided to give it a try.  With the `OpenCV HOG` in place, I found similar results.  Extracting features for around 1000 windows now took only `0.2s`.  The bottleneck now became the classifer.
 
 ##### Prediction Time (Round Two)
 
 To bring my prediction time down even further, I started looking into classifiers other than SVM.  My thoughts here is that perhaps the data is just to noisy for SVM to perform well.
 
-In addition, while training time isn't necessarily my primary concern, the (Scikit-Learn SCV Documentation)[http://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html] indicates that SVMs do not scale well with large datasets.
+In addition, while training time isn't necessarily my primary concern, the [Scikit-Learn SVM Documentation](http://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html) indicates that SVMs do not scale well with large datasets.
 
 > The implementation is based on libsvm. The fit time complexity is more than quadratic with the number of samples which makes it hard to scale to dataset with more than a couple of 10000 samples.
 
