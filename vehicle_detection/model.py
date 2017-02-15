@@ -99,18 +99,9 @@ class Model():
         print('time (extract features):', end - start)
 
         X_train, X_test, y_train, y_test = train_test_split(X, y)
-        clf = RandomForestClassifier(n_jobs=-1, min_samples_split=5, n_estimators=50)
-        # clf = GridSearchCV(rfc, cv=10, param_grid={
-        #     'min_samples_split': [3, 5, 10, 20],
-        #     'n_estimators': [10, 50, 100]
-        # })
-        # clf.fit(X_train, y_train)
-        # print(clf.best_estimator_)
 
-        # clf = AdaBoostClassifier(base_estimator=rfc, n_estimators=3)
-
-        # clf.fit(X_train, y_train)
-        # print(clf.best_estimator_)
+        clf = RandomForestClassifier(n_jobs=-1, min_samples_split=5)
+        clf = AdaBoostClassifier(base_estimator=clf, n_estimators=5)
 
         self.pipeline = Pipeline([
             ('scaler', StandardScaler(with_mean=True, with_std=True)),
@@ -135,12 +126,6 @@ class Model():
         print(classification_report(y_test, y_pred, target_names=target_names))
 
         self.save()
-
-    def predict(self, X):
-        X = [self.single_img_features(x) for x in X]
-        # X = self.feature_selection.transform(X)
-
-        return self.pipeline.predict(X)
 
     def visualise(self, X, y):
 

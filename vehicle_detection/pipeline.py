@@ -1,5 +1,6 @@
 from vehicle_detection.model import Model
 from vehicle_detection.logger import Logger
+from vehicle_detection.vehicle import Vehicle
 import matplotlib.pyplot as plt
 from scipy.ndimage.measurements import label
 from collections import deque
@@ -10,41 +11,42 @@ import time
 
 class Pipeline():
 
-    def __init__(self, model):
+    def __init__(self, model, mode):
 
         self.n = 5
         self.model = model
-
-        # todo
-        self.out_maps = []
-        self.out_boxes = []
-
-        self.heatmaps = deque(maxlen = self.n)
-
-        self.vehicles = []
+        self.mode = mode
 
         self.cutoff = 400
         self.search = [
             {
                 'scale': 1,
-                'cells_per_step': 2,
+                'cells_per_step': 1,
                 'y_start_stop': [None, 4]
             },
             {
                 'scale': 1.5,
-                'cells_per_step': 2,
+                'cells_per_step': 1,
                 'y_start_stop': [0, 6]
             },
             {
                 'scale': 2,
                 'cells_per_step': 2,
-                'y_start_stop': [None, None]
+                'y_start_stop': [2, None]
             }
         ]
+        self.reset()
+
+    def reset(self):
+        self.vehicles = []
+        self.heatmaps = deque(maxlen = self.n)
 
     def process(self, image):
 
         image = image.astype(np.float32)/255
+        for vehicle in self.vehicles:
+            vehicle.measurement = False
+            vehicle.detected = False
 
         if Logger.logging:
             print('--- process image ---')
@@ -61,10 +63,11 @@ class Pipeline():
             Logger.save(image, 'original')
             Logger.save(image_to_search, 'image-to-search')
 
+        # extract features
         start = time.time()
         window_list, features = [], []
         for search in self.search:
-            find_window_list, find_features = self.get_scaled_features(
+            find_window_list, find_features = self.get_features(
                 image_to_search,
                 scale=search.get('scale'),
                 cells_per_step=search.get('cells_per_step'),
@@ -88,7 +91,7 @@ class Pipeline():
         idxs = np.where(preds == 1)
         hot_windows = np.array(window_list)[idxs]
 
-        # windows to search
+        # visualize searched and hot windows
         if Logger.logging:
             print('windows:', len(window_list))
             tmp = self.draw_boxes(image, window_list, color=(0, 0, 1))
@@ -108,15 +111,15 @@ class Pipeline():
             plt.close()
 
         # average heatmap
-        avg_heatmap = np.sum(self.heatmaps, axis=0) / len(self.heatmaps)
-        if Logger.logging:
-            fig = plt.figure(figsize=(8, 6))
-            plt.imshow(heatmap, cmap='hot')
-            Logger.save(fig, 'average-heat-map')
-            plt.close()
+        # avg_heatmap = np.sum(self.heatmaps, axis=0)
+        # if Logger.logging:
+        #     fig = plt.figure(figsize=(8, 6))
+        #     plt.imshow(avg_heatmap, cmap='hot')
+        #     Logger.save(fig, 'average-heat-map')
+        #     plt.close()
 
         # threshold
-        heatmap = self.apply_threshold(heatmap, 2)
+        heatmap = self.apply_threshold(heatmap, 4)
 
         if Logger.logging:
             fig = plt.figure(figsize=(8, 6))
@@ -132,7 +135,40 @@ class Pipeline():
             Logger.save(fig, 'labels')
             plt.close()
 
-        image = self.draw_labeled_bboxes(image, labels)
+        for car_number in range(1, labels[1] + 1):
+
+            matches = []
+            nonzero = (labels[0] == car_number).nonzero()
+
+            for vehicle in self.vehicles:
+                if vehicle.matches(nonzero):
+                    matches.append(vehicle)
+
+            # overlap - do not update measurements until cars separate again
+            # instead use internal predictions for location
+            if len(matches) > 1:
+                pass
+
+            # existing vehicle
+            elif len(matches) == 1:
+                matches[0].update(nonzero)
+
+            # new vehicle
+            else:
+                threshold = 0 if self.mode == 'test_images' else 5
+                vehicle = Vehicle(threshold=threshold)
+                vehicle.update(nonzero)
+                self.vehicles.append(vehicle)
+
+
+        for vehicle in self.vehicles:
+
+            if not vehicle.check_detected():
+                self.vehicles.remove(vehicle)
+                continue
+
+            image = vehicle.draw_bbox(image)
+
         Logger.save(image, 'final')
 
         end_total = time.time()
@@ -142,24 +178,23 @@ class Pipeline():
         Logger.increment()
         return image * 255
 
-    def get_scaled_features(self, image, scale=1, cells_per_step=4, y_start_stop=[None, None]):
+    def get_features(self, image, scale=1, cells_per_step=4, y_start_stop=[None, None]):
 
-        find_image = copy.copy(image)
-        find_image = self.scale_image(find_image, scale=scale)
-
+        find_image = self.scale_image(image, scale=scale)
         window_list = self.get_window_list(find_image, xy_window=(64, 64), cells_per_step=cells_per_step, y_start_stop=y_start_stop)
 
         features = []
+
         for window in window_list:
             # Extract the test window from original image
             window_pixels = self.window_to_pixels(window)
-            window_image = image[window_pixels[0][1]:window_pixels[1][1], window_pixels[0][0]:window_pixels[1][0]]
+            window_image = find_image[window_pixels[0][1]:window_pixels[1][1], window_pixels[0][0]:window_pixels[1][0]]
+            # Logger.save(window_image, 'window')
             features.append(self.model.single_img_features(window_image))
 
         window_list = [self.window_to_draw(x, scale=scale) for x in window_list]
 
         return window_list, features
-
 
     def get_window_list(self, 
         image,
@@ -230,7 +265,7 @@ class Pipeline():
     def scale_image(self, image, scale=1):
         if scale != 1:
             size = image.shape
-            return cv2.resize(image, (np.int(size[1] / scale), np.int(size[0] // scale)))
+            image = cv2.resize(image, (np.int(size[1] / scale), np.int(size[0] / scale)))
 
         return image
 
@@ -268,18 +303,3 @@ class Pipeline():
         heatmap[heatmap <= threshold] = 0
         # Return thresholded map
         return heatmap
-
-    def draw_labeled_bboxes(self, img, labels):
-        # Iterate through all detected cars
-        for car_number in range(1, labels[1]+1):
-            # Find pixels with each car_number label value
-            nonzero = (labels[0] == car_number).nonzero()
-            # Identify x and y values of those pixels
-            nonzeroy = np.array(nonzero[0])
-            nonzerox = np.array(nonzero[1])
-            # Define a bounding box based on min/max x and y
-            bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
-            # Draw the box on the image
-            cv2.rectangle(img, (bbox[0][0], bbox[0][1]), (bbox[1][0], bbox[1][1]), (0,0,1), 6)
-        # Return the image
-        return img
