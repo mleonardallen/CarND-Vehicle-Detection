@@ -132,6 +132,40 @@ pickle.dump(self.pipeline, open("pipeline.pkl", "wb"))
 
 ####1. Describe how (and identify where in your code) you implemented a sliding window search.  How did you decide what scales to search and how much to overlap windows?
 
+My sliding window search is contained in `vehicle_detection/pipeline.py` in the `process` method.
+
+##### Original Image
+
+![Original Image](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-01-original.jpg)
+
+To begin, I first slice off the top of the image to reduce processing time for some of the later operations.
+
+![Sliced Image](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-02-image-to-search.jpg)
+
+I then generate a sliding window search to extract individual images to send to the classifier.
+
+![Window List](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-03-window-list.jpg)
+
+Hot windows are those that are predicted to be a vehicle by the classifier.
+
+![Hot Windows](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-04-hot-windows.jpg)
+
+From the hot windows, a heat map is generated to indicate the spots where many detections occurred.
+
+![Heat Map](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-05-heat-map.jpg)
+
+The heat map is then thresholded to remove superfluous detections.  False positives occur but they generally do not exceed the heat map threshold.
+
+![Heat Map Thresholded](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-06-heat-map-thresholded.jpg)
+
+Label is used to isolate each heat map into a single detection.
+
+![Vehicle Labels](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-07-labels.jpg)
+
+Final Image
+
+![Final Image](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-08-final.jpg)
+
 I decided to search random window positions at random scales all over the image and came up with this (ok just kidding I didn't actually ;):
 
 ![alt text][image3]
@@ -152,7 +186,7 @@ I first sought ways to bring my assifier prediction time down.  Since the comput
 
  * With StandardScaler `std_dev = True` caused the number of support vectors to increase, slowing down prediction times.
  * Using feature selection, I found that 30% of the feature still gave good accuracy while improving prediction speed.
- * I found some images in the `non-vehicles` images that contained partial vehicle iamges.  I removed those hoping to reduce the noice in the data.
+ * I found some images in the `non-vehicles` images that contained partial vehicle iamges.  I removed those hoping to reduce the noise in the data.
  * Wrapping with a `Bagging Classifier` improved prediction time.
 
 After making these improvements, my prediction time reduced from around `32s` to `1.5s` per frame.
