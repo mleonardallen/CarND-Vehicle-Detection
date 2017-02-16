@@ -140,21 +140,41 @@ My sliding window search is contained in `vehicle_detection/pipeline.py` in the 
 
 To begin, I first slice off the top of the image to reduce processing time for some of the later operations.
 
+> `vehicle_detection/pipeline.py` in `process` method on `line 60`.
+
 ![Sliced Image](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-02-image-to-search.jpg)
 
-I then generate a sliding window search to extract individual images to send to the classifier.
+I then generate impliment a sliding window search to extract individual images to send to the classifier.  
+
+> `vehicle_detection/pipeline.py` in `process` method on `line 66`.
+
+Initially, I used pixel values and overlap values to define the window sliding behavior.  After reviewing the project hints, I switched to a sliding window scheme that steps by increments of HOG cells.  This was for batching up the HOG operation so that the hog features were not extracted redundantly on overlapping window slices.
+
+> Note: After experimenting, I did end up switching out the batch HOG operation in favor of the very fast `cv2.HOGDescriptor`.  See the [optimization](#optimization) section.
+
+For window sizes, I used the `scale` property to scale the entire region of interest down before doing the sliding window search.  For example, at scale `2` the image size is halved, meaning a 64x64 window now covers double the space within the image, essentially get the same effect as if the region of interest is kept constant but a 128x128 window size is used.  The added benefit is that only one resize operation is done per window scale instead of resizing each window slice.
+
+> `vehicle_detection/pipeline.py`, methods: `get_window_list`, `get_features`
+
+I chose 3 window scales.  A scale of `1 (64x64)`, `1.5 (96x96)`, and `2 (128x128)`.  For the smaller sizes I do not extend down to the bottom of the image as to not affect performance too much.  Vehicles at the top of the region of interest will also be smaller.  For scale of 2, I search all but the very top region of interest.  This is because vehicles can still appear large until very close to the horizon.  For cells per step, I opted to search at `1 cell per step` at the smaller scales.  Even though this increased the number of search windows and feature selection time, I was able to produce smoother bounding boxes and it also allowed me to increaase the heatmap threshold later on to reduce false positives.
+
+> Total number of windows: 1391
 
 ![Window List](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-03-window-list.jpg)
 
-Hot windows are those that are predicted to be a vehicle by the classifier.
+Class label predictions are made on extracted features using the same pipeline created during the training phase.  Hot windows shown below are those that are predicted to be a vehicle by the classifier.  These could also be false positives.
+
+> `vehicle_detection/pipeline.py` in `process` method on `line 85`.
 
 ![Hot Windows](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-04-hot-windows.jpg)
 
-From the hot windows, a heat map is generated to indicate the spots where many detections occurred.
+From the hot windows, a heat map is generated to indicate the spots where many detections occurred.  Hot spots occur where hot windows overlap.
+
+> `vehicle_detection/pipeline.py` in `process` method on `line 104` and method `add_heat` on `line 289`.
 
 ![Heat Map](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-05-heat-map.jpg)
 
-The heat map is then thresholded to remove superfluous detections.  False positives occur but they generally do not exceed the heat map threshold.
+The heat map is then thresholded to remove superfluous detections.  False positives occur but they generally do not exceed the heat map threshold.  In practice, I increased the threshold until most of the fasle positives went away.
 
 ![Heat Map Thresholded](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-06-heat-map-thresholded.jpg)
 
@@ -165,10 +185,6 @@ Label is used to isolate each heat map into a single detection.
 Final Image
 
 ![Final Image](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-08-final.jpg)
-
-I decided to search random window positions at random scales all over the image and came up with this (ok just kidding I didn't actually ;):
-
-![alt text][image3]
 
 <a name="optimization"/>
 
