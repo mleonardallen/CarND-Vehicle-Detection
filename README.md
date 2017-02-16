@@ -138,11 +138,15 @@ My sliding window search is contained in `vehicle_detection/pipeline.py` in the 
 
 ![Original Image](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-01-original.jpg)
 
+##### Region of Interest
+
 To begin, I first slice off the top of the image to reduce processing time for some of the later operations.
 
 > `vehicle_detection/pipeline.py` in `process` method on `line 60`.
 
 ![Sliced Image](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-02-image-to-search.jpg)
+
+##### Window Search
 
 I then generate impliment a sliding window search to extract individual images to send to the classifier.  
 
@@ -162,11 +166,15 @@ I chose 3 window scales.  A scale of `1 (64x64)`, `1.5 (96x96)`, and `2 (128x128
 
 ![Window List](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-03-window-list.jpg)
 
+##### Hot Windows & Class Prediction
+
 Class label predictions are made on extracted features using the same pipeline created during the training phase.  Hot windows shown below are those that are predicted to be a vehicle by the classifier.  These could also be false positives.
 
 > `vehicle_detection/pipeline.py` in `process` method on `line 85`.
 
 ![Hot Windows](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-04-hot-windows.jpg)
+
+##### Heat Map
 
 From the hot windows, a heat map is generated to indicate the spots where many detections occurred.  Hot spots occur where hot windows overlap.
 
@@ -174,15 +182,37 @@ From the hot windows, a heat map is generated to indicate the spots where many d
 
 ![Heat Map](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-05-heat-map.jpg)
 
+##### Heat Map - Thresholded
+
 The heat map is then thresholded to remove superfluous detections.  False positives occur but they generally do not exceed the heat map threshold.  In practice, I increased the threshold until most of the fasle positives went away.
+
+> `vehicle_detection/pipeline.py` in `process` method on `line 123`
+
+Note: I did end up averaging the heat map here.  Instead I chose to allow a Vehicle instance to keep track of internal measurements and do averages from those measurements.
 
 ![Heat Map Thresholded](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-06-heat-map-thresholded.jpg)
 
-Label is used to isolate each heat map into a single detection.
+##### Labels
+
+`scipy.ndimage.measurements.label` is used to isolate heat maps into single vehicle detections.
+
+> `vehicle_detection/pipeline.py` in `process` method on `line 131`
 
 ![Vehicle Labels](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-07-labels.jpg)
 
-Final Image
+##### Tracking & Vehicle Class
+
+Instead, of averaging the heatmaps to remove false positives and create smooth bounding boxes, I chose to track each detection with an instance of the `Vehicle` class
+
+> `vehicle_detection/vehicle.py`
+
+First I determine if the `label` from above matches a current vehicle.
+
+> `vehicle_detection/pipeline.py` in `process` method starting on `line 139`
+
+If matching, the `vehicle` instance is updated with the new measurement.  The bounding box is not shown until the car is detected in a few frames.  In addition the width/height and bounding box are averaged over a few frames to provide a smoother bounding box.
+
+For all vehicles that meet the thresholding criteria, a bounding box is drawn.
 
 ![Final Image](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-08-final.jpg)
 
