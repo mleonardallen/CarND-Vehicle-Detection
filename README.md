@@ -312,7 +312,7 @@ Another thought is you could have a classifier with less accuracy but high preci
 
 Another way to improve the speed would just be to have a better window search with a reduced number of windows.  Perhaps, it would even be okay to run the window search on sections of the image per each frame.  For example, on frame 1 search the left most portion of the image, and on frame 2, move over just a little.  Since there are several frames per second, the search probably isn't needed for every section of the image at every frame.
 
-###### Tracking
+##### Tracking
 
 I'd like to be able to track each object independantly during the overlaps.  My Pipeline would notably fail in heavy traffic with many cars.  I can imagine that the current label method would create one big blob as a single detection.
 
