@@ -166,6 +166,8 @@ I chose 3 window scales.  A scale of `1 (64x64)`, `1.5 (96x96)`, and `2 (128x128
 
 ![Window List](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-03-window-list.jpg)
 
+####2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
+
 ##### Hot Windows & Class Prediction
 
 Class label predictions are made on extracted features using the same pipeline created during the training phase.  Hot windows shown below are those that are predicted to be a vehicle by the classifier.  These could also be false positives.
@@ -217,8 +219,6 @@ For all vehicles that meet the thresholding criteria, a bounding box is drawn.
 ![Final Image](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-08-final.jpg)
 
 <a name="optimization"/>
-
-####2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
 
 ##### Accuracy
 
