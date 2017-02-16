@@ -202,6 +202,61 @@ Note: I did end up averaging the heat map here.  Instead I chose to allow a Vehi
 
 ![Vehicle Labels](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-07-labels.jpg)
 
+##### Bounding Box
+
+For test images, the bounding box is drawn based on the label.  For the video pipeline there is additional thresholding before the bounding box is shown.
+
+![Final Image](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-08-final.jpg)
+
+<a name="optimization"/>
+
+##### Optimizing Classifier Performance
+
+My initial tuned pipeline performed well with accuracy, with around 99% accuracy, however it was very slow.  Here I focused on increasing the speed of my classifier.
+
+###### Prediction Time
+
+My initial pipeline and classifier took several seconds to make predictions per frame of the video.
+
+I first sought ways to bring my assifier prediction time down.  Since the computational complexity of SVM is linear with respect to the number of support vectors (nSV) and the dimensionality of the data, I sought ways to reduce them both.
+
+ * With StandardScaler `std_dev = True` caused the number of support vectors to increase, slowing down prediction times.
+ * Using feature selection, I found that 30% of the feature still gave good accuracy while improving prediction speed.
+ * I found some images in the `non-vehicles` images that contained partial vehicle iamges.  I removed those hoping to reduce the noise in the data.
+ * Wrapping with a `Bagging Classifier` improved prediction time.
+
+After making these improvements, my prediction time reduced from around `32s` to `1.5s` per frame.
+
+###### Feature Extraction
+
+To bring feature extraction time down, I implimented a suggestion from the project hints, running the `hog` function only once on the entire image.  However, I found this took several seconds to run on the entire image, and the effect is compounded when searching multiple scales.
+
+This led me to discover the [OpenCV Version of HOG](http://docs.opencv.org/2.4/modules/gpu/doc/object_detection.html), and after reading that OpenCV could be up to [30x faster](http://bbabenko.tumblr.com/post/56701676646/when-hogs-py), I decided to give it a try.  With the `OpenCV HOG` in place, I found similar results.  Extracting features for around 1000 windows now took only `0.2s`.  The bottleneck now became the classifer.
+
+###### Prediction Time (Round Two)
+
+To bring my prediction time down even further, I started looking into classifiers other than SVM.  My thoughts here is that perhaps the data is just to noisy for SVM to perform well.
+
+In addition, while training time isn't necessarily my primary concern, the [Scikit-Learn SVM Documentation](http://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html) indicates that SVMs do not scale well with large datasets.
+
+> The implementation is based on libsvm. The fit time complexity is more than quadratic with the number of samples which makes it hard to scale to dataset with more than a couple of 10000 samples.
+
+With this in mind, I experimented with `RandomForestClassfier`.
+
+###### Random Forest Classifier
+After switching to `RandomForestClassifier`, my prediction time when way down.  It took about `0.16` seconds to run predictions on about 1000 windows.  However my accuracy did go down slightly to 98%.  Even at 98%, I was getting quite a bit of false positives.  Using Adaboost in conjunction with a Random Forest Classifier, I was able to improve the accurancy even beyond what I was getting with my SVM classifier.  My final classifier did not run as fast as I wished, but still notably faster than my original SVM.
+
+---
+
+### Video Implementation
+
+####1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (somewhat wobbly or unstable bounding boxes are ok as long as you are identifying the vehicles most of the time with minimal false positives.)
+Here's a [link to my video result](./project_video.mp4)
+
+
+####2. Describe how (and identify where in your code) you implemented some kind of filter for false positives and some method for combining overlapping bounding boxes.
+
+
 ##### Tracking & Vehicle Class
 
 Instead, of averaging the heatmaps to remove false positives and create smooth bounding boxes, I chose to track each detection with an instance of the `Vehicle` class
@@ -215,54 +270,6 @@ First I determine if the `label` from above matches a current vehicle.
 If matching, the `vehicle` instance is updated with the new measurement.  The bounding box is not shown until the car is detected in a few frames.  In addition the width/height and bounding box are averaged over a few frames to provide a smoother bounding box.
 
 For all vehicles that meet the thresholding criteria, a bounding box is drawn.
-
-![Final Image](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-08-final.jpg)
-
-<a name="optimization"/>
-
-##### Accuracy
-
-I started out using a SVM using Grid Search to determine the best parameters.  I found `C = 100`, 'gamma = 0.001', and `kernel = rbf` gave good results with accuracy around 99%.
-
-##### Prediction Time
-
-My initial pipeline and classifier took several seconds to make predictions per frame of the video.
-
-I first sought ways to bring my assifier prediction time down.  Since the computational complexity of SVM is linear with respect to the number of support vectors (nSV) and the dimensionality of the data, I sought ways to reduce them both.
-
- * With StandardScaler `std_dev = True` caused the number of support vectors to increase, slowing down prediction times.
- * Using feature selection, I found that 30% of the feature still gave good accuracy while improving prediction speed.
- * I found some images in the `non-vehicles` images that contained partial vehicle iamges.  I removed those hoping to reduce the noise in the data.
- * Wrapping with a `Bagging Classifier` improved prediction time.
-
-After making these improvements, my prediction time reduced from around `32s` to `1.5s` per frame.
-
-##### Feature Extraction
-
-To bring feature extraction time down, I implimented a suggestion from the project hints, running the `hog` function only once on the entire image.  However, I found this took several seconds to run on the entire image, and the effect is compounded when searching multiple scales.
-
-This led me to discover the [OpenCV Version of HOG](http://docs.opencv.org/2.4/modules/gpu/doc/object_detection.html), and after reading that OpenCV could be up to [30x faster](http://bbabenko.tumblr.com/post/56701676646/when-hogs-py), I decided to give it a try.  With the `OpenCV HOG` in place, I found similar results.  Extracting features for around 1000 windows now took only `0.2s`.  The bottleneck now became the classifer.
-
-##### Prediction Time (Round Two)
-
-To bring my prediction time down even further, I started looking into classifiers other than SVM.  My thoughts here is that perhaps the data is just to noisy for SVM to perform well.
-
-In addition, while training time isn't necessarily my primary concern, the [Scikit-Learn SVM Documentation](http://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html) indicates that SVMs do not scale well with large datasets.
-
-> The implementation is based on libsvm. The fit time complexity is more than quadratic with the number of samples which makes it hard to scale to dataset with more than a couple of 10000 samples.
-
-With this in mind, I experimented with `RandomForestClassier`.
-
-![alt text][image4]
----
-
-### Video Implementation
-
-####1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (somewhat wobbly or unstable bounding boxes are ok as long as you are identifying the vehicles most of the time with minimal false positives.)
-Here's a [link to my video result](./project_video.mp4)
-
-
-####2. Describe how (and identify where in your code) you implemented some kind of filter for false positives and some method for combining overlapping bounding boxes.
 
 I recorded the positions of positive detections in each frame of the video.  From the positive detections I created a heatmap and then thresholded that map to identify vehicle positions.  I then used `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap.  I then assumed each blob corresponded to a vehicle.  I constructed bounding boxes to cover the area of each blob detected.  
 
