@@ -49,7 +49,7 @@ To extract `HOG` features, initially I experimented with `skimage.hog()`, which 
 
 Here are a few examples of the `hog`, `color spatial`, and `color histogram` features from both the `vehicle` and `non-vehicle` classes:
 
-![alt text][image1]
+![Features](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/examples/features.png)
 
 Note: The `skimage.hog()` provided a great way to visualise the features, but in the end I switched to `cv2.HOGDescriptor` due to performance.  See my section on [optimization](#optimization)
 
