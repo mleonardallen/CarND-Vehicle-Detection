@@ -37,7 +37,7 @@ Here is an example of one of each of the `vehicle` and `non-vehicle` classes:
 
 TODO
 
-For all `Vehicle` and `Not Vehicle` images in the dataset, I extract features using the `single_img_features` method
+For all `Vehicle` and `Not Vehicle` images in the dataset, I extract features using the `single_img_features` method.
 
 > `vehicle_detection/model.py`, in method `fit` on `line 96`
 
