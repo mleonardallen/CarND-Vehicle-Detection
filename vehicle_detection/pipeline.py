@@ -11,13 +11,14 @@ import time
 
 class Pipeline():
 
-    def __init__(self, model, mode):
+    def __init__(self, model, mode, mine=False):
 
         self.model = model
         self.mode = mode
         self.n = 5
         self.heatmap_threshold = 5
 
+        self.mine = mine
         self.cutoff = 400
         self.search = [
             {
@@ -66,15 +67,16 @@ class Pipeline():
 
         # extract features
         start = time.time()
-        window_list, features = [], []
+        window_list, window_images, features = [], [], []
         for search in self.search:
-            find_window_list, find_features = self.get_features(
+            find_window_list, find_images, find_features = self.get_features(
                 image_to_search,
                 scale=search.get('scale'),
                 cells_per_step=search.get('cells_per_step'),
                 y_start_stop=search.get('y_start_stop')
             )
             window_list += find_window_list
+            window_images += find_images
             features += find_features
         end = time.time()
 
@@ -89,11 +91,19 @@ class Pipeline():
         if Logger.logging:
             print('time (predict):', end-start)
 
+        # vehicle predictions
         idxs = np.where(preds == 1)
-        hot_windows = np.array(window_list)[idxs]
 
-        # visualize searched and hot windows
+        if self.mine:
+            hot_images = np.array(window_images)[idxs]
+            for hot_image in hot_images:
+                Logger.save(hot_image, 'window')
+            return image
+
+        # hot windows
+        hot_windows = np.array(window_list)[idxs]
         if Logger.logging:
+            # visualize searched and hot windows
             print('windows:', len(window_list))
             tmp = self.draw_boxes(image, window_list, color=(0, 0, 1))
             Logger.save(tmp, 'window-list')
@@ -110,14 +120,6 @@ class Pipeline():
             plt.imshow(heatmap, cmap='hot')
             Logger.save(fig, 'heat-map')
             plt.close()
-
-        # average heatmap
-        # heatmap = np.sum(self.heatmaps, axis=0) / len(self.heatmaps)
-        # if Logger.logging:
-        #     fig = plt.figure(figsize=(8, 6))
-        #     plt.imshow(heatmap, cmap='hot')
-        #     Logger.save(fig, 'average-heat-map')
-        #     plt.close()
 
         # threshold
         heatmap = self.apply_threshold(heatmap, self.heatmap_threshold)
@@ -176,7 +178,8 @@ class Pipeline():
 
             image = vehicle.draw_bbox(image)
 
-        Logger.save(image, 'final')
+        if Logger.logging:
+            Logger.save(image, 'final')
 
         end_total = time.time()
         if Logger.logging:
@@ -191,17 +194,18 @@ class Pipeline():
         window_list = self.get_window_list(find_image, xy_window=(64, 64), cells_per_step=cells_per_step, y_start_stop=y_start_stop)
 
         features = []
+        images = []
 
         for window in window_list:
             # Extract the test window from original image
             window_pixels = self.window_to_pixels(window)
             window_image = find_image[window_pixels[0][1]:window_pixels[1][1], window_pixels[0][0]:window_pixels[1][0]]
-            # Logger.save(window_image, 'window')
+            images.append(window_image)
             features.append(self.model.single_img_features(window_image))
 
         window_list = [self.window_to_draw(x, scale=scale) for x in window_list]
 
-        return window_list, features
+        return window_list, images, features
 
     def get_window_list(self, 
         image,

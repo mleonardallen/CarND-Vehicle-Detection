@@ -13,7 +13,7 @@ from vehicle_detection.logger import Logger
 from vehicle_detection.pipeline import Pipeline
 from sklearn.utils import shuffle
 
-def main(mode=None, source=None, out=None, log=False):
+def main(mode=None, source=None, out=None, log=False, mine=False):
 
     Logger.logging = log
     Logger.mode = mode
@@ -25,7 +25,7 @@ def main(mode=None, source=None, out=None, log=False):
         use_spatial=True,
         use_hist=False,
         hog_color_space=cv2.COLOR_RGB2YCrCb,
-        spatial_color_space=cv2.COLOR_RGB2YUV,
+        spatial_color_space=cv2.COLOR_RGB2HSV,
         hist_color_space=None,
     )
 
@@ -34,6 +34,7 @@ def main(mode=None, source=None, out=None, log=False):
         images = pd.read_csv('images.csv', names=['filepath', 'class'])
         X_all = images['filepath'].values
         y_all = images['class'].values.astype('uint8')
+
         print('Cars:', len(np.where(y_all == 1)[0]))
         print('Not-Cars:', len(np.where(y_all == 0)[0]))
 
@@ -49,17 +50,19 @@ def main(mode=None, source=None, out=None, log=False):
         end = time.time()
         print('time (load images):', end-start)
 
+        print(len(y))
+
         model.fit(X, y)
 
     elif mode == 'video':
         Logger.source = source
-        pipeline = Pipeline(model=model, mode='video')
+        pipeline = Pipeline(model=model, mode='video', mine=mine)
         source_video = VideoFileClip(source)
         output_video = source_video.fl_image(pipeline.process)
         output_video.write_videofile(out, audio=False)
 
     elif mode == 'test_images':
-        pipeline = Pipeline(model=model, mode='test_images')
+        pipeline = Pipeline(model=model, mode='test_images', mine=mine)
         images = glob.glob('test_images/*.jpg')
         for idx, fname in enumerate(images):
             pipeline.reset()
@@ -103,11 +106,13 @@ if __name__ == '__main__':
     parser.add_argument('--source', nargs='?', default='project_video.mp4', help='Input video')
     parser.add_argument('--out', nargs='?', default='out.mp4', help='Output video')
     parser.add_argument('--log', action='store_true', help='Log output images')
+    parser.add_argument('--mine', action='store_true', help='Hard negative mining')
     args = parser.parse_args()
 
     main(
         mode=args.mode, 
         source=args.source, 
         out=args.out,
-        log=args.log
+        log=args.log,
+        mine=args.mine
     )

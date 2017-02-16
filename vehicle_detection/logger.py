@@ -41,10 +41,6 @@ class Logger():
 
         image_type = type(image).__name__
 
-        # do not save images if logging is turned off
-        if Logger.logging == False:
-            return
-
         assert Logger.mode is not None, "mode is not set [video, test]"
 
         # convert binary images to color before saving

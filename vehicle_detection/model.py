@@ -113,8 +113,8 @@ class Model():
         # f1_scorer = make_scorer(f1_score)
         # clf = GridSearchCV(svr, verbose=100, param_grid=parameters, scoring=f1_scorer, cv=10)
 
-        clf = RandomForestClassifier(n_jobs=-1, min_samples_split=5)
-        clf = AdaBoostClassifier(base_estimator=clf, n_estimators=5)
+        clf = RandomForestClassifier(n_jobs=-1, min_samples_split=5, class_weight={1:1.05})
+        clf = AdaBoostClassifier(base_estimator=clf, n_estimators=4)
 
         self.pipeline = Pipeline([
             ('scaler', StandardScaler(with_mean=True, with_std=True)),
