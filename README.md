@@ -55,7 +55,7 @@ Note: The `skimage.hog()` provided a great way to visualise the features, but in
 
 ####2. Explain how you settled on your final choice of HOG parameters.
 
-| Parameter    | Value | Reasoning |
+| Parameter    | Chosen Value | Reasoning |
 | ------------ | -----:|:--------- |
 | orientations | 9     | Lowering the orientation bins down to 6 improved the speed for hog feature extraction, but I felt that the cost to accuracy was too much.  Improvements to testing accuracy plataued at 9 bins.  Increasing beyond 9 increased time needed for feature extraction. |
 | pixels per cell | 8 | TODO |
