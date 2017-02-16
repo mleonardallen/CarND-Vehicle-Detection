@@ -29,7 +29,7 @@ The goals / steps of this project are the following:
 
 ####1. Explain how (and identify where in your code) you extracted HOG features from the training images.
 
-I started by reading in all the `vehicle` and `non-vehicle` images.
+I start by reading in all the `vehicle` and `non-vehicle` images.
 
 > `main.py`, starting at `line 31`
 
