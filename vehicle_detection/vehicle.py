@@ -1,14 +1,13 @@
 from collections import deque
 import numpy as np
 import cv2
+from pykalman import KalmanFilter
 
 class Vehicle():
 
-    Number = 0
+    def __init__(self, threshold=5, remove_threshold=10):
 
-    def __init__(self, threshold=5, remove_threshold=20):
-
-        self.n = 5
+        self.n = 20
 
         self.detected = True       # was the vehicle detected
         self.measurement = True    # did we get a vehicle measurement, False if overlaps occur
@@ -26,16 +25,17 @@ class Vehicle():
         self.white = (1, 1, 1)
         self.font = cv2.FONT_HERSHEY_SIMPLEX
 
-        Vehicle.Number += 1
-        self.number = Vehicle.Number
+        self.min_size = 150
 
     def matches(self, label):
 
-        # Identify x and y values of those pixels
-        point = self.get_center_point(label)
+        bbox = self.get_label_box(label)
+        width, height = self.get_dimensions(bbox)
+        if width * height < self.min_size:
+            return False
 
-        prediction = self.get_predicted_location()
-        bbox = self.get_bbox(prediction)
+        # Identify x and y values of those pixels
+        point = self.get_predicted_location()
 
         if self.is_point_in_bbox(point, bbox):
             self.detected = True
@@ -46,7 +46,10 @@ class Vehicle():
     def update(self, label):
 
         point = self.get_center_point(label)
-        width, height = self.get_dimensions(label)
+        self.point = point
+
+        bbox = self.get_label_box(label)
+        width, height = self.get_dimensions(bbox)
 
         self.points.append(point)
         self.widths.append(width)
@@ -58,14 +61,14 @@ class Vehicle():
         labely = np.array(label[0])
         labelx = np.array(label[1])
 
-        return (np.mean(labelx), np.mean(labely))
+        return (int(np.mean(labelx)), int(np.mean(labely)))
 
-    def get_dimensions(self, label):
+    def get_label_box(self, label):
         nonzeroy = np.array(label[0])
         nonzerox = np.array(label[1])
         x1, y1, x2, y2 = np.min(nonzerox), np.min(nonzeroy), np.max(nonzerox), np.max(nonzeroy)
 
-        return (x2 - x1), (y2 - y1)
+        return ((x1, y1),(x2, y2))
 
     def check_detected(self):
 
@@ -87,21 +90,9 @@ class Vehicle():
         valid_vehicle = self.n_nondetections < self.remove_threshold
         return valid_vehicle
 
-
+    # TODO: incorporate Kalman Filter
     def get_predicted_location(self):
-
-        y = [point for point in self.points]
-
-        # if not enough information to make a prediction, just return last measurement
-        if len(y) <= 2:
-            return self.points[-1]
-
-        x = np.arange(len(y))
-        fit = np.polyfit(x, y, 1)
-
-        x_pred = len(y) + 1
-        y_pred = x_pred * np.array(fit[0]) + fit[1]
-        return y_pred
+        return self.points[-1]
 
     def is_point_in_bbox(self, point, bbox):
 
@@ -113,6 +104,13 @@ class Vehicle():
         y_in_range = y1 < y and y < y2
 
         return x_in_range and y_in_range
+
+    def get_dimensions(self, bbox):
+        x1, y1 = bbox[0]
+        x2, y2 = bbox[1]
+        width, height = x2 - x1, y2 - y1
+
+        return width, height
 
     def get_bbox(self, point):
 
@@ -133,23 +131,22 @@ class Vehicle():
         if self.n_detections < self.threshold:
             return img
 
-        point = self.points[-1]
+        point = np.average(self.points, axis=0)
+        point = (int(point[0]), int(point[1]))
+
         bbox = self.get_bbox(point)
 
-        # green - have current measurement
-        # yellow - guess
+        if not self.detected:
+            return img
+
+        if not self.measurement:
+            return img
 
         color = (0,1,0) 
-        if not self.measurement and not self.detected:
-            color = (1,0,0)
-        elif not self.measurement:
+        if not self.measurement:
             color = (1,1,0)
-        elif not self.detected:
-            color = (0,0,1)
 
         cv2.rectangle(img, (bbox[0][0], bbox[0][1]), (bbox[1][0], bbox[1][1]), color, 6)
-
-        text = 'Car ' + str(self.number)
-        cv2.putText(img, text, (bbox[0][0], bbox[0][1] - 8), self.font, 1, self.white, 2, cv2.LINE_AA)
+        cv2.circle(img, self.point, 6, color)
 
         return img

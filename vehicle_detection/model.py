@@ -100,6 +100,19 @@ class Model():
 
         X_train, X_test, y_train, y_test = train_test_split(X, y)
 
+        ###
+        # SVM Classifier
+        # Note: Swapped out with RandomForestClassifier to improve performance
+        ###
+        # parameters = {
+        #     'kernel': ['linear', 'rbf'],
+        #     'gamma': ['auto', 0.1, 0.001, 0.0001],
+        #     'C': [1, 10, 100, 1000]
+        # }
+        # svr = svm.SVC()
+        # f1_scorer = make_scorer(f1_score)
+        # clf = GridSearchCV(svr, verbose=100, param_grid=parameters, scoring=f1_scorer, cv=10)
+
         clf = RandomForestClassifier(n_jobs=-1, min_samples_split=5)
         clf = AdaBoostClassifier(base_estimator=clf, n_estimators=5)
 
@@ -176,23 +189,13 @@ class Model():
 
         return np.concatenate(features)
 
-    def hog(self, image, visualise=False, feature_vector=True):
+    def hog(self, image, visualise=False):
 
         image = cv2.cvtColor(image, self.hog_color_space)
         image = (image * 255).astype('uint8')
         features = self.cv2Hog.compute(image).ravel()
 
-        if feature_vector:
-            return features
-
-        yblocks = self.get_num_blocks(image.shape[0])
-        xblocks = self.get_num_blocks(image.shape[1])
-        return np.reshape(
-            features,
-            (yblocks, xblocks, self.cells_per_block, self.cells_per_block, self.orientations)
-        )
-
-
+        return features
 
         #     if visualise:
 

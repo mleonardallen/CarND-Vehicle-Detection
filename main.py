@@ -11,7 +11,6 @@ import cv2
 from vehicle_detection.model import Model
 from vehicle_detection.logger import Logger
 from vehicle_detection.pipeline import Pipeline
-from vehicle_detection.vehicle import Vehicle
 
 def main(mode=None, source=None, out=None, log=False):
 
@@ -50,6 +49,7 @@ def main(mode=None, source=None, out=None, log=False):
         print('time (load images):', end-start)
 
         model.fit(X, y)
+
     elif mode == 'video':
         Logger.source = source
         pipeline = Pipeline(model=model, mode='video')
@@ -61,7 +61,6 @@ def main(mode=None, source=None, out=None, log=False):
         pipeline = Pipeline(model=model, mode='test_images')
         images = glob.glob('test_images/*.jpg')
         for idx, fname in enumerate(images):
-            Vehicle.Number = 0
             pipeline.reset()
             Logger.source = fname
             img = image.imread(fname)

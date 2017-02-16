@@ -13,9 +13,9 @@ class Pipeline():
 
     def __init__(self, model, mode):
 
-        self.n = 5
         self.model = model
         self.mode = mode
+        self.n = 5
 
         self.cutoff = 400
         self.search = [
@@ -39,7 +39,7 @@ class Pipeline():
 
     def reset(self):
         self.vehicles = []
-        self.heatmaps = deque(maxlen = self.n)
+        self.heatmaps = deque(maxlen=self.n)
 
     def process(self, image):
 
@@ -111,10 +111,10 @@ class Pipeline():
             plt.close()
 
         # average heatmap
-        # avg_heatmap = np.sum(self.heatmaps, axis=0)
+        # heatmap = np.sum(self.heatmaps, axis=0) / len(self.heatmaps)
         # if Logger.logging:
         #     fig = plt.figure(figsize=(8, 6))
-        #     plt.imshow(avg_heatmap, cmap='hot')
+        #     plt.imshow(heatmap, cmap='hot')
         #     Logger.save(fig, 'average-heat-map')
         #     plt.close()
 
@@ -144,19 +144,17 @@ class Pipeline():
                 if vehicle.matches(nonzero):
                     matches.append(vehicle)
 
-            # overlap - do not update measurements until cars separate again
-            # instead use internal predictions for location
+            # TODO: track objects separately
             if len(matches) > 1:
-                pass
+                for vehicle in matches:
+                    self.vehicles.remove(vehicle)
 
             # existing vehicle
-            elif len(matches) == 1:
+            if len(matches) == 1:
                 matches[0].update(nonzero)
-
             # new vehicle
             else:
-                threshold = 0 if self.mode == 'test_images' else 5
-                vehicle = Vehicle(threshold=threshold)
+                vehicle = Vehicle(threshold=0) if self.mode == 'test_images' else Vehicle()
                 vehicle.update(nonzero)
                 self.vehicles.append(vehicle)
 
