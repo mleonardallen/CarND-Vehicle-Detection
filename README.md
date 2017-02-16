@@ -37,7 +37,7 @@ Here is an example of one of each of the `vehicle` and `non-vehicle` classes:
 
 TODO
 
-For all `Car` and `Not Car` images in the dataset, I extract features using the `single_img_features` method
+For all `Vehicle` and `Not Vehicle` images in the dataset, I extract features using the `single_img_features` method
 
 > `vehicle_detection/model.py`, in method `fit` on `line 96`
 
@@ -117,7 +117,7 @@ I first sought ways to bring my assifier prediction time down.  Since the comput
 
  * With StandardScaler `std_dev = True` caused the number of support vectors to increase, slowing down prediction times.
  * Using feature selection, I found that 30% of the feature still gave good accuracy while improving prediction speed.
- * I found some images in the `not-cars` images that contained partial car iamges.  I removed those hoping to reduce the noice in the data.
+ * I found some images in the `non-vehicles` images that contained partial vehicle iamges.  I removed those hoping to reduce the noice in the data.
  * Wrapping with a `Bagging Classifier` improved prediction time.
 
 After making these improvements, my prediction time reduced from around `32s` to `1.5s` per frame.
