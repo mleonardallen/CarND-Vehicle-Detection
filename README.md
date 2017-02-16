@@ -57,15 +57,15 @@ Note: The `skimage.hog()` provided a great way to visualise the features, but in
 
 In determining which features and color spaces to leverage, I considered two factors: prediction accuracy and time to extract features.  Below are my results after training each feature individually with a non-optimized classifier, and looking at feature selection performance within my pipeline.
 
-I opted to remove the color histogram features due to the added cost of feature extraction and relatively little value compared with the other two features.
-
 | Parameter    | Chosen Value | Reasoning |
 | ------------ | -----:|:--------- |
 | orientations | 9     | Lowering the orientation bins down to 6 improved the speed for hog feature extraction, but I felt that the cost to accuracy was too much.  Improvements to testing accuracy plataued at 9 bins.  Increasing beyond 9 increased time needed for feature extraction. |
 | pixels per cell | 8 | TODO |
 | cells per block | 2 | TODO |
 
-| Feature    | Feature Extraction on 1000 64x64 images | Prediction Accuracy |
+I opted to remove the color histogram features due to the added cost of feature extraction and relatively little value compared with the other two features.
+
+| Feature    | Feature Extraction on 1000 64x64 images | Test Accuracy |
 | ---------- | -----:| ----:|
 | HOG        | 0.12s | 0.97 |
 | Spatial    | 0.1s  | 0.97 |
