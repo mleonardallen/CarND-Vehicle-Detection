@@ -118,6 +118,7 @@ class Model():
 
         self.pipeline = Pipeline([
             ('scaler', StandardScaler(with_mean=True, with_std=True)),
+            # ('features', SelectPercentile(percentile=30)),
             ('clf', clf)
         ])
         start = time.time()
@@ -144,28 +145,54 @@ class Model():
 
         rows = 4
         cols = 5
-        plt.subplots(figsize=(12, 16))
+        
+        fig, axes = plt.subplots(figsize=(12, 16))
+        fig.subplots_adjust(hspace=.5)
+        fig.tight_layout()
         for idx, x in enumerate(X[:5]):
 
+            subidx = 0
+
+            pos = (cols * subidx) + idx + 1
             text = 'Car' if y[idx] == 1 else 'Not-Car'
+            self.subplot(rows, cols, pos, text)
+            plt.imshow(x)
+            subidx += 1
 
-            self.subplot(x, rows, cols, idx + 1, text)
+            pos = (cols * subidx) + idx + 1
+            hog_image = self.hog(x, visualise=True)
+            self.subplot(rows, cols, pos, text=text + ' Hog')
+            plt.imshow(hog_image)
+            subidx += 1
 
-            hog, hog_image = self.hog(x, visualise=True)
-            self.subplot(hog_image, rows, cols, cols + idx + 1, text=text + ' Hog')
-            plt.imshow(image)
+            pos = (cols * subidx) + idx + 1
+            hog_image = self.hog(x, pixels_per_cell=16, visualise=True)
+            self.subplot(rows, cols, pos, text=text + ' Hog, YCrCb, pixels_per_cell=16')
+            plt.imshow(hog_image)
+            subidx += 1
 
-            spatial = self.spatial(x)
-            self.subplot(hog_image, rows, cols, cols * 2 + idx + 1, text=text + ' Hog')
-            plt.imshow(image)
+            spatials = self.bin_spatial(x, visualise=True)
+            for spatidx, spatial in enumerate(spatials):
+                pos = (cols * subidx) + idx + 1
+                self.subplot(rows, cols, pos, text=text + ' Spatial, YUV, Channel ' + str(spatidx))
+                plt.imshow(spatial)
+                subidx += 1
 
+            hists = self.color_hist(x, visualise=True)
+            for histidx, hist in enumerate(hists):
+                pos = (cols * subidx) + idx + 1
+                self.subplot(rows, cols, pos, text=text + ' Hist, RGB, Channel ' + str(histidx))
+                plt.plot(hist)
+                subidx += 1
 
         plt.show()
 
-    def subplot(self, image, row, col, idx, text = ''):
+    def subplot(self, row, col, idx, text = ''):
+        from textwrap import wrap
         subplot = plt.subplot(9, 5, idx)
         subplot.get_xaxis().set_visible(False)
         subplot.get_yaxis().set_visible(False)
+        text = "\n".join(wrap(text, 20))
         subplot.title.set_text(text)
 
     def single_img_features(self, image):
@@ -189,67 +216,72 @@ class Model():
 
         return np.concatenate(features)
 
-    def hog(self, image, visualise=False):
+    def hog(self, 
+        image, 
+        visualise=False, 
+        pixels_per_cell=None,
+        cells_per_block=None,
+        orientations=None
+    ):
+
+        if orientations is None:
+            orientations = self.orientations
+
+        if pixels_per_cell is None:
+            pixels_per_cell = self.pixels_per_cell
+
+        if cells_per_block is None:
+            cells_per_block = self.cells_per_block
 
         image = cv2.cvtColor(image, self.hog_color_space)
-        image = (image * 255).astype('uint8')
-        features = self.cv2Hog.compute(image).ravel()
 
-        return features
+        if not visualise:
+            image = (image * 255).astype('uint8')
+            features = self.cv2Hog.compute(image).ravel()
 
-        #     if visualise:
+            return features
 
-        #         channel_features, channel_image = hog(
-        #             image_channel,
-        #             orientations=self.orientations,
-        #             pixels_per_cell=(self.pixels_per_cell, self.pixels_per_cell),
-        #             cells_per_block=(self.cells_per_block, self.cells_per_block),
-        #             visualise=True, feature_vector=False, transform_sqrt=False
-        #         )
+        # only return the visualization
+        hog_image = np.zeros((64, 64))
+        for channel in self.hog_channels:
+            image_channel = image[:,:,channel]
+            channel_features, channel_image = hog(
+                image_channel,
+                orientations=orientations,
+                pixels_per_cell=(pixels_per_cell, pixels_per_cell),
+                cells_per_block=(cells_per_block, cells_per_block),
+                visualise=True, feature_vector=False, transform_sqrt=False
+            )
 
-        #         # reduce features by adding all hogs together
-        #         hog_image = np.add(hog_image, channel_image)
-        #         features = np.add(features, channel_features)
-        #     else:
+            hog_image = np.add(hog_image, channel_image)
 
-        #         start = time.time()
-        #         channel_features = hog(
-        #             image_channel,
-        #             orientations=self.orientations,
-        #             pixels_per_cell=(self.pixels_per_cell, self.pixels_per_cell),
-        #             cells_per_block=(self.cells_per_block, self.cells_per_block),
-        #             visualise=False, feature_vector=False, transform_sqrt=False
-        #         )
-        #         end = time.time()
-
-        #         # reduce features by adding all hogs together
-        #         features = np.add(features, channel_features)
-
-        # if feature_vector:
-        #     features = features.ravel()
-
-        # if visualise:
-        #     return features, hog_image
-
-        # return features
+        return hog_image
 
     def get_num_blocks(self, size):
         return (size // self.pixels_per_cell) - 1
 
     # Define a function to compute color histogram features
-    def bin_spatial(self, image, size=(32, 32)):
+    def bin_spatial(self, image, size=(32, 32), visualise=False):
         if self.spatial_color_space:
             image = cv2.cvtColor(image, self.spatial_color_space)
 
         features = []
         for channel in self.spatial_channels:
             image_channel = image[:,:,channel]
-            features.append(cv2.resize(image_channel, size).ravel())
+            channel_features = cv2.resize(image_channel, size)
 
-        return np.concatenate(features)
+            if not visualise:
+                channel_features = channel_features.ravel()
+
+            features.append(channel_features)
+
+        if not visualise:
+            return np.concatenate(features)
+
+        return features
 
     # Define a function to compute color histogram features
-    def color_hist(self, image, nbins=32):
+    def color_hist(self, image, nbins=32, visualise=False):
         if self.hist_color_space:
             image = cv2.cvtColor(image, self.hist_color_space)
 
@@ -257,6 +289,9 @@ class Model():
         for channel in self.hist_chanels:
             channel_hist = np.histogram(image[:,:,channel], bins=nbins)
             features.append(channel_hist[0])
+
+        if visualise:
+            return features
 
         return np.concatenate(features)
 

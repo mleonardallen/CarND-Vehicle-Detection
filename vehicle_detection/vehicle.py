@@ -5,7 +5,7 @@ from pykalman import KalmanFilter
 
 class Vehicle():
 
-    def __init__(self, threshold=5, remove_threshold=10):
+    def __init__(self, threshold=5, remove_threshold=5):
 
         self.n = 20
 
@@ -127,9 +127,6 @@ class Vehicle():
     def draw_bbox(self, img):
         # do not draw until we see the car a few times
         # this is to remove false positives
-
-        if self.n_detections < self.threshold:
-            return img
 
         point = np.average(self.points, axis=0)
         point = (int(point[0]), int(point[1]))

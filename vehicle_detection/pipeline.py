@@ -16,6 +16,7 @@ class Pipeline():
         self.model = model
         self.mode = mode
         self.n = 5
+        self.heatmap_threshold = 5
 
         self.cutoff = 400
         self.search = [
@@ -119,7 +120,7 @@ class Pipeline():
         #     plt.close()
 
         # threshold
-        heatmap = self.apply_threshold(heatmap, 4)
+        heatmap = self.apply_threshold(heatmap, self.heatmap_threshold)
 
         if Logger.logging:
             fig = plt.figure(figsize=(8, 6))
@@ -137,6 +138,10 @@ class Pipeline():
 
         for car_number in range(1, labels[1] + 1):
 
+            threshold = 10
+            if self.mode == 'test_images':
+                threshold = 0
+
             matches = []
             nonzero = (labels[0] == car_number).nonzero()
 
@@ -146,6 +151,8 @@ class Pipeline():
 
             # TODO: track objects separately
             if len(matches) > 1:
+                # set threshold to zero so new bounding box shows right away
+                threshold = 0
                 for vehicle in matches:
                     self.vehicles.remove(vehicle)
 
@@ -154,15 +161,17 @@ class Pipeline():
                 matches[0].update(nonzero)
             # new vehicle
             else:
-                vehicle = Vehicle(threshold=0) if self.mode == 'test_images' else Vehicle()
+                vehicle = Vehicle(threshold=threshold)
                 vehicle.update(nonzero)
                 self.vehicles.append(vehicle)
 
 
         for vehicle in self.vehicles:
-
             if not vehicle.check_detected():
                 self.vehicles.remove(vehicle)
+                continue
+
+            if vehicle.n_detections < vehicle.threshold:
                 continue
 
             image = vehicle.draw_bbox(image)
