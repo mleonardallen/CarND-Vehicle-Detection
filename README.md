@@ -256,36 +256,44 @@ Here's a [link to my video result](./project_video.mp4)
 
 ####2. Describe how (and identify where in your code) you implemented some kind of filter for false positives and some method for combining overlapping bounding boxes.
 
+##### False Positives
 
-##### Tracking & Vehicle Class
-
-Instead, of averaging the heatmaps to remove false positives and create smooth bounding boxes, I chose to track each detection with an instance of the `Vehicle` class
+Instead, of averaging the heatmaps to remove false positives and create smooth bounding boxes, I chose to track each detection with an instance of the `Vehicle` class.  This is in addition to thresholding the heatmap as described above.
 
 > `vehicle_detection/vehicle.py`
 
-First I determine if the `label` from above matches a current vehicle.
+First I determine if the `label` from above matches a current vehicle.  To determine if a car matches a given label, I get the center point of the last known position of the car and determine if it is contained within the bounding box defined by the label.
 
-> `vehicle_detection/pipeline.py` in `process` method starting on `line 139`
+> `vehicle_detection/pipeline.py` in `process` method starting on `line 139` and `vehicle_detection/vehicle.py` in the `matches` method.
 
-If matching, the `vehicle` instance is updated with the new measurement.  The bounding box is not shown until the car is detected in a few frames.  In addition the width/height and bounding box are averaged over a few frames to provide a smoother bounding box.
+# Overlapping Match
 
-For all vehicles that meet the thresholding criteria, a bounding box is drawn.
+In the case that two vehicles overlap, I remove both of those vehicles from the tracking list.  Then a new `vehicle` instance is created to track the overlapping vehicles.  In this case the newly created vehicle is assumed to have already met the thresholding requirements.
 
-I recorded the positions of positive detections in each frame of the video.  From the positive detections I created a heatmap and then thresholded that map to identify vehicle positions.  I then used `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap.  I then assumed each blob corresponded to a vehicle.  I constructed bounding boxes to cover the area of each blob detected.  
+> `vehicle_detection/pipeline.py` in `process` method starting on `line 152`
 
-Here's an example result showing the heatmap from a series of frames of video, the result of `scipy.ndimage.measurements.label()` and the bounding boxes then overlaid on the last frame of video:
+# Single Match
 
-### Here are six frames and their corresponding heatmaps:
+If matching, the `vehicle` instance is updated with the new measurement.  The new measurement is stored and later leveraged to create a smooth bounding box by averaging over a few frames.
 
-![alt text][image5]
+> `vehicle_detection/pipeline.py` in `process` method starting on `line 160` and `vehicle_detection/vehicle.py` in the `update` method.
 
-### Here is the output of `scipy.ndimage.measurements.label()` on the integrated heatmap from all six frames:
-![alt text][image6]
+# New Vehicle
+If the label did not match any existing vehicles, a new vehicle instance in created to keep track of the detection.
 
-### Here the resulting bounding boxes are drawn onto the last frame in the series:
-![alt text][image7]
+> `vehicle_detection/pipeline.py` in `process` method starting on `line 160` and `vehicle_detection/vehicle.py` in the `update` method.
 
+# Removing Vehicles
 
+If a vehicle is undetected beyond a threshold number of frames, it is removed from the tracked vehicles.
+
+> `vehicle_detection/pipeline.py` in `process` method starting on `line 170` and `vehicle_detection/vehicle.py` in the `check_detected` method.
+
+# Bounding Box
+
+For all vehicles that meet the thresholding criteria, a bounding box is drawn.  In addition the width/height and bounding box are averaged over a few frames to provide a smoother bounding box.  
+
+> `vehicle_detection/pipeline.py` in `process` method starting on `line 174` and `vehicle_detection/vehicle.py` in the `update` method.
 
 ---
 
