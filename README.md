@@ -224,6 +224,7 @@ I first sought ways to bring my assifier prediction time down.  Since the comput
  * Using feature selection, I found that 30% of the feature still gave good accuracy while improving prediction speed.
  * I found some images in the `non-vehicles` images that contained partial vehicle iamges.  I removed those hoping to reduce the noise in the data.
  * Wrapping with a `Bagging Classifier` improved prediction time.
+ * Batching Predictions instead of doing a prediction for one image at a time.
 
 After making these improvements, my prediction time reduced from around `32s` to `1.5s` per frame.
 
@@ -303,5 +304,18 @@ For all vehicles that meet the thresholding criteria, a bounding box is drawn.  
 
 ####1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+##### Pipeline Speed
+
+While I improved my pipeline speed far beyond my original pipeline, it is still not good enough to run in real time.  In addition to batching operations like HOG featuers and classifier predictions, I think it might be useful to have a very fast classifier identify areas of interest using a simplified set of features and simplified classifier.  If the simple classfier gets a match, then the more expensive classifier can then run around the area detected by the simple classifier.
+
+Another thought is you could have a classifier with less accuracy but high precision by weighting the `Vehicle` class over the `Non Vehicle` class.  If the accuracy can be lowered, then the model could in turn be simpler and run in a reduced amount of time.  That would put more importance on a good method for removing false positives.
+
+Another way to improve the speed would just be to have a better window search with a reduced number of windows.  Perhaps, it would even be okay to run the window search on sections of the image per each frame.  For example, on frame 1 search the left most portion of the image, and on frame 2, move over just a little.  Since there are several frames per second, the search probably isn't needed for every section of the image at every frame.
+
+###### Tracking
+
+I'd like to be able to track each object independantly during the overlaps.  My Pipeline would notably fail in heavy traffic with many cars.  I can imagine that the current label method would create one big blob as a single detection.
+
+Briefly, I looked into the Kalman filter.  I think this is probably a good step in being able to track each vehicle separately, but I also think that in order for this to work I would want to get rid of the labelling method and stick with just heatmaps.
+
 
