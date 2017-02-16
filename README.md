@@ -179,7 +179,7 @@ I chose 3 window scales.  A scale of `1 (64x64)`, `1.5 (96x96)`, and `2 (128x128
 
 Class label predictions are made on extracted features using the same pipeline created during the training phase.  Hot windows shown below are those that are predicted to be a vehicle by the classifier.  These could also be false positives.
 
-> `vehicle_detection/pipeline.py` in `process` method on `line 85`.
+> `vehicle_detection/pipeline.py` in `process` method on `line 86`.
 
 ![Hot Windows](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-04-hot-windows.jpg)
 
@@ -187,7 +187,7 @@ Class label predictions are made on extracted features using the same pipeline c
 
 From the hot windows, a heat map is generated to indicate the spots where many detections occurred.  Hot spots occur where hot windows overlap.
 
-> `vehicle_detection/pipeline.py` in `process` method on `line 104` and method `add_heat` on `line 289`.
+> `vehicle_detection/pipeline.py` in `process` method on `line 104` and method `add_heat`.
 
 ![Heat Map](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-05-heat-map.jpg)
 
@@ -195,7 +195,7 @@ From the hot windows, a heat map is generated to indicate the spots where many d
 
 The heat map is then thresholded to remove superfluous detections.  False positives occur but they generally do not exceed the heat map threshold.  In practice, I increase the threshold until most of the false positives went away.
 
-> `vehicle_detection/pipeline.py` in `process` method on `line 123`
+> `vehicle_detection/pipeline.py` in `process` method on `line 124`
 
 Note: I did end up averaging the heat map here.  Instead I chose to allow a Vehicle instance to keep track of internal measurements and do averages from those measurements.
 
@@ -205,7 +205,7 @@ Note: I did end up averaging the heat map here.  Instead I chose to allow a Vehi
 
 `scipy.ndimage.measurements.label` is used to isolate heat maps into single vehicle detections.
 
-> `vehicle_detection/pipeline.py` in `process` method on `line 131`
+> `vehicle_detection/pipeline.py` in `process` method on `line 133`
 
 ![Vehicle Labels](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/output_images/test_images/test1-07-labels.jpg)
 
@@ -252,7 +252,10 @@ In addition, while training time isn't necessarily my primary concern, the [Scik
 With this in mind, I experimented with `RandomForestClassfier`.
 
 ###### Random Forest Classifier
-After switching to `RandomForestClassifier`, my prediction time when way down.  It took about `0.16` seconds to run predictions on about 1000 windows.  However my accuracy did go down slightly to 98%.  Even at 98%, I was getting quite a bit of false positives.  Using Adaboost in conjunction with a Random Forest Classifier, I was able to improve the accuracy even beyond what I was getting with my SVM classifier.  My final classifier did not run as fast as I wished, but still notably faster than my original SVM.
+After switching to `RandomForestClassifier`, my prediction time when way down.  It took about `0.16` seconds to run predictions on about 1000 windows.  However my accuracy did go down slightly to 98%.  Even at 98%, I was getting quite a bit of false positives.  Using Adaboost in conjunction with a Random Forest Classifier, I was able to improve the accuracy even beyond what I was getting with my SVM classifier.  My final classifier did not run as fast as I wished, but still notably faster with about `0.5` to run predictions on 1000 windows.
+
+###### Hard Negative Mining
+After running my pipeline on the entire video, I noticed a few places where I was detecting false positives that made it through my thresholding.  To account for this, I saved approximately 1000 false positives to supplement the non-vehicle examples, and trained my classifier again.
 
 ---
 
