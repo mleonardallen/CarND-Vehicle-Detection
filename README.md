@@ -29,18 +29,29 @@ The goals / steps of this project are the following:
 
 ####1. Explain how (and identify where in your code) you extracted HOG features from the training images.
 
-My `HOG` feature extraction is contained in the method `hog` in the file `vehicle_detection/model.py`.  Initially I experimented with the `skimage hog`.
+I started by reading in all the `vehicle` and `non-vehicle` images.
 
-I started by reading in all the `vehicle` and `non-vehicle` images.  Here is an example of one of each of the `vehicle` and `non-vehicle` classes:
+> `main.py`, starting at `line 31`
+
+Here is an example of one of each of the `vehicle` and `non-vehicle` classes:
+
+TODO
+
+For all `Car` and `Not Car` images in the dataset, I extract features using the `single_img_features` method
+
+> `vehicle_detection/model.py`, in method `fit` on `line 96`
+
+In the `single_img_features` method there are flags to control which features are added to my feature array.  For convenience, the feature flags are controlled from `main.py`, so that the same flags are used during training and prediction.  Additional parameters allowed me to test different color spaces and channel combinations.
+
+With the feature flag active, `single_img_features` leverages a corresponding feature extraction method for each feature type: `hog`, `bin_spatial`, and `color_hist`.  Each method returns a 1d array that gets concatenated into one feature vector containing each leveraged feature.
+
+To extract `HOG` features, initially I experimented with the `skimage.hog()`, which allows visualization by passing in the `visualise` parameter.  Using this parameter, I visually inspected the HOG feature output for different color spaces on a few images from the training data.  Color spaces included `RGB`, `LUV`, `HSV`, `YUV`, `HLS`, and `YCrCb`.  Visually I noted that HOG gradients appeared to more consistently visible under the `YCrCb` color space.
+
+Here are a few examples of the `hog`, `color spatial`, and `color histogram` features from both the `vehicle` and `non-vehicle` classes:
 
 ![alt text][image1]
 
-I then explored different color spaces and different `skimage.hog()` parameters (`orientations`, `pixels_per_cell`, and `cells_per_block`).  I grabbed random images from each of the two classes and displayed them to get a feel for what the `skimage.hog()` output looks like.
-
-Here is an example using the `YCrCb` color space and HOG parameters of `orientations=8`, `pixels_per_cell=(8, 8)` and `cells_per_block=(2, 2)`:
-
-
-![alt text][image2]
+Note: The `skimage.hog()` provided a great way to visualise the features, but in the end I switched to `cv2.HOGDescriptor` due to performance.  See my section on [optimization](#optimization)
 
 ####2. Explain how you settled on your final choice of HOG parameters.
 
@@ -91,6 +102,7 @@ I decided to search random window positions at random scales all over the image 
 
 ![alt text][image3]
 
+<a name="optimization"/>
 ####2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
 
 ##### Accuracy
