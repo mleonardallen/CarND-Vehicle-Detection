@@ -59,7 +59,7 @@ In determining which features and color spaces to leverage, I considered two fac
 
 | Parameter    | Chosen Value | Reasoning |
 | ------------ | -----:|:--------- |
-| orientations | 9     | Lowering the orientation bins down to 6 improved the speed for hog feature extraction, but I felt that the cost to accuracy was too much.  Improvements to testing accuracy plataued at 9 bins.  Increasing beyond 9 increased time needed for feature extraction. |
+| orientations | 9     | Lowering the orientation bins down to 6 improved the speed for hog feature extraction, but I felt that the cost to accuracy was too much.  Improvements to testing accuracy plateaued at 9 bins.  Increasing beyond 9 increased time needed for feature extraction. |
 | pixels per cell | 8 | TODO |
 | cells per block | 2 | TODO |
 
@@ -86,7 +86,7 @@ After extracting features for all of the `Vehicle` and `Non-Vehicle` as describe
 
 > `vehicle_detection/model.py`, method `fit`
 
-Before training the classifier, I split the data into training and testing datasets using `sklearn.model_selection.train_test_split`.  The test dataset is witheld so we can verify the trained model can generalize against unseen data.
+Before training the classifier, I split the data into training and testing datasets using `sklearn.model_selection.train_test_split`.  The test dataset is withheld so we can verify the trained model can generalize against unseen data.
 
 > `vehicle_detection/model.py`, method `fit` on `line 101`
 
@@ -112,7 +112,7 @@ Starting with my classifier, I initially experimented with the SVM classifier.  
 
 > `vehicle_detection/model.py`, method `fit` on `line 103`
 
-Note: The above code is commented out because I opted to use a `RandomForestClassifer` in the end.  See the section on [optimiazation](#optimization).
+Note: The above code is commented out because I opted to use a `RandomForestClassifer` in the end.  See the section on [optimization](#optimization).
 
 My classifier is then trained on the training dataset by calling the `fit` method of the `pipeline`.  The pipeline begins the fitting process by using the StandardScaler to normalize the data with zero mean and unit variance.  After normalization, `sklearn.feature_slection.SelectPercentile` removes all but 30% of the highest scoring features (Scored using ANOVA f values).
 
@@ -148,7 +148,7 @@ To begin, I first slice off the top of the image to reduce processing time for s
 
 ##### Window Search
 
-I then generate impliment a sliding window search to extract individual images to send to the classifier.  
+I then implement a sliding window search to extract individual images to send to the classifier.  
 
 > `vehicle_detection/pipeline.py` in `process` method on `line 66`.
 
@@ -160,7 +160,7 @@ For window sizes, I used the `scale` property to scale the entire region of inte
 
 > `vehicle_detection/pipeline.py`, methods: `get_window_list`, `get_features`
 
-I chose 3 window scales.  A scale of `1 (64x64)`, `1.5 (96x96)`, and `2 (128x128)`.  For the smaller sizes I do not extend down to the bottom of the image as to not affect performance too much.  Vehicles at the top of the region of interest will also be smaller.  For scale of 2, I search all but the very top region of interest.  This is because vehicles can still appear large until very close to the horizon.  For cells per step, I opted to search at `1 cell per step` at the smaller scales.  Even though this increased the number of search windows and feature selection time, I was able to produce smoother bounding boxes and it also allowed me to increaase the heatmap threshold later on to reduce false positives.
+I chose 3 window scales.  A scale of `1 (64x64)`, `1.5 (96x96)`, and `2 (128x128)`.  For the smaller sizes I do not extend down to the bottom of the image as to not affect performance too much.  Vehicles at the top of the region of interest will also be smaller.  For scale of 2, I search all but the very top region of interest.  This is because vehicles can still appear large until very close to the horizon.  For cells per step, I opted to search at `1 cell per step` at the smaller scales.  Even though this increased the number of search windows and feature selection time, I was able to produce smoother bounding boxes and it also allowed me to increase the heatmap threshold later on to reduce false positives.
 
 > Total number of windows: 1391
 
@@ -186,7 +186,7 @@ From the hot windows, a heat map is generated to indicate the spots where many d
 
 ##### Heat Map - Thresholded
 
-The heat map is then thresholded to remove superfluous detections.  False positives occur but they generally do not exceed the heat map threshold.  In practice, I increased the threshold until most of the fasle positives went away.
+The heat map is then thresholded to remove superfluous detections.  False positives occur but they generally do not exceed the heat map threshold.  In practice, I increase the threshold until most of the false positives went away.
 
 > `vehicle_detection/pipeline.py` in `process` method on `line 123`
 
@@ -222,7 +222,7 @@ I first sought ways to bring my assifier prediction time down.  Since the comput
 
  * With StandardScaler `std_dev = True` caused the number of support vectors to increase, slowing down prediction times.
  * Using feature selection, I found that 30% of the feature still gave good accuracy while improving prediction speed.
- * I found some images in the `non-vehicles` images that contained partial vehicle iamges.  I removed those hoping to reduce the noise in the data.
+ * I found some images in the `non-vehicles` images that contained partial vehicle images.  I removed those hoping to reduce the noise in the data.
  * Wrapping with a `Bagging Classifier` improved prediction time.
  * Batching Predictions instead of doing a prediction for one image at a time.
 
@@ -230,13 +230,13 @@ After making these improvements, my prediction time reduced from around `32s` to
 
 ###### Feature Extraction
 
-To bring feature extraction time down, I implimented a suggestion from the project hints, running the `hog` function only once on the entire image.  However, I found this took several seconds to run on the entire image, and the effect is compounded when searching multiple scales.
+To bring feature extraction time down, I implemented a suggestion from the project hints, running the `hog` function only once on the entire image.  However, I found this took several seconds to run on the entire image, and the effect is compounded when searching multiple scales.
 
-This led me to discover the [OpenCV Version of HOG](http://docs.opencv.org/2.4/modules/gpu/doc/object_detection.html), and after reading that OpenCV could be up to [30x faster](http://bbabenko.tumblr.com/post/56701676646/when-hogs-py), I decided to give it a try.  With the `OpenCV HOG` in place, I found similar results.  Extracting features for around 1000 windows now took only `0.2s`.  The bottleneck now became the classifer.
+This led me to discover the [OpenCV Version of HOG](http://docs.opencv.org/2.4/modules/gpu/doc/object_detection.html), and after reading that OpenCV could be up to [30x faster](http://bbabenko.tumblr.com/post/56701676646/when-hogs-py), I decided to give it a try.  With the `OpenCV HOG` in place, I found similar results.  Extracting features for around 1000 windows now took only `0.2s`.  The bottleneck now became the classifier.
 
 ###### Prediction Time (Round Two)
 
-To bring my prediction time down even further, I started looking into classifiers other than SVM.  My thoughts here is that perhaps the data is just to noisy for SVM to perform well.
+To bring my prediction time down even further, I started looking into classifiers other than SVM.  My thoughts here is that perhaps the data is just too noisy for SVM to perform well.
 
 In addition, while training time isn't necessarily my primary concern, the [Scikit-Learn SVM Documentation](http://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html) indicates that SVMs do not scale well with large datasets.
 
@@ -245,7 +245,7 @@ In addition, while training time isn't necessarily my primary concern, the [Scik
 With this in mind, I experimented with `RandomForestClassfier`.
 
 ###### Random Forest Classifier
-After switching to `RandomForestClassifier`, my prediction time when way down.  It took about `0.16` seconds to run predictions on about 1000 windows.  However my accuracy did go down slightly to 98%.  Even at 98%, I was getting quite a bit of false positives.  Using Adaboost in conjunction with a Random Forest Classifier, I was able to improve the accurancy even beyond what I was getting with my SVM classifier.  My final classifier did not run as fast as I wished, but still notably faster than my original SVM.
+After switching to `RandomForestClassifier`, my prediction time when way down.  It took about `0.16` seconds to run predictions on about 1000 windows.  However my accuracy did go down slightly to 98%.  Even at 98%, I was getting quite a bit of false positives.  Using Adaboost in conjunction with a Random Forest Classifier, I was able to improve the accuracy even beyond what I was getting with my SVM classifier.  My final classifier did not run as fast as I wished, but still notably faster than my original SVM.
 
 ---
 
@@ -306,15 +306,15 @@ For all vehicles that meet the thresholding criteria, a bounding box is drawn.  
 
 ##### Pipeline Speed
 
-While I improved my pipeline speed far beyond my original pipeline, it is still not good enough to run in real time.  In addition to batching operations like HOG featuers and classifier predictions, I think it might be useful to have a very fast classifier identify areas of interest using a simplified set of features and simplified classifier.  If the simple classfier gets a match, then the more expensive classifier can then run around the area detected by the simple classifier.
+While I improved my pipeline speed far beyond my original pipeline, it is still not good enough to run in real time.  In addition to batching operations like HOG features and classifier predictions, I think it might be useful to have a very fast classifier identify areas of interest using a simplified set of features and simplified classifier.  If the simple classifier gets a match, then the more expensive classifier can then run around the area detected by the simple classifier.
 
 Another thought is you could have a classifier with less accuracy but high precision by weighting the `Vehicle` class over the `Non Vehicle` class.  If the accuracy can be lowered, then the model could in turn be simpler and run in a reduced amount of time.  That would put more importance on a good method for removing false positives.
 
-Another way to improve the speed would just be to have a better window search with a reduced number of windows.  Perhaps, it would even be okay to run the window search on sections of the image per each frame.  For example, on frame 1 search the left most portion of the image, and on frame 2, move over just a little.  Since there are several frames per second, the search probably isn't needed for every section of the image at every frame.
+Another way to improve the speed would just be to have a better window search with a reduced number of windows.  Perhaps, it would even be okay to run the window search on sections of the image per each frame.  For example, on frame 1 search the leftmost portion of the image, and on frame 2, move over just a little.  Since there are several frames per second, the search probably isn't needed for every section of the image at every frame.
 
 ##### Label Method
 My Pipeline would notably fail in heavy traffic with many cars.  I can imagine that the current label method would create one big blob as a single detection.  Because of this, I think a more robust pipeline might just use the heatmaps to get more accurate measurements of individual detections.
 
 ##### Tracking
 
-I'd like to be able to track each object independantly during the overlaps, and continue to predict location when the vehicle is occluded.  Briefly, I looked into the Kalman filter.  I think this is probably a good step in being able to track each vehicle separately.
+I'd like to be able to track each object independently during the overlaps, and continue to predict location when the vehicle is occluded.  Briefly, I looked into the Kalman filter.  I think this is probably a good step in being able to track each vehicle separately.
