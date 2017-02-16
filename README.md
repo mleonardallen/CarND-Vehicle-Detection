@@ -266,30 +266,32 @@ First I determine if the `label` from above matches a current vehicle.  To deter
 
 > `vehicle_detection/pipeline.py` in `process` method starting on `line 139` and `vehicle_detection/vehicle.py` in the `matches` method.
 
-# Overlapping Match
+##### Overlapping Match
 
 In the case that two vehicles overlap, I remove both of those vehicles from the tracking list.  Then a new `vehicle` instance is created to track the overlapping vehicles.  In this case the newly created vehicle is assumed to have already met the thresholding requirements.
 
 > `vehicle_detection/pipeline.py` in `process` method starting on `line 152`
 
-# Single Match
+![Overlap](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/examples/overlap.png)
+
+##### Single Match
 
 If matching, the `vehicle` instance is updated with the new measurement.  The new measurement is stored and later leveraged to create a smooth bounding box by averaging over a few frames.
 
 > `vehicle_detection/pipeline.py` in `process` method starting on `line 160` and `vehicle_detection/vehicle.py` in the `update` method.
 
-# New Vehicle
+##### New Vehicle
 If the label did not match any existing vehicles, a new vehicle instance in created to keep track of the detection.
 
 > `vehicle_detection/pipeline.py` in `process` method starting on `line 160` and `vehicle_detection/vehicle.py` in the `update` method.
 
-# Removing Vehicles
+##### Removing Vehicles
 
 If a vehicle is undetected beyond a threshold number of frames, it is removed from the tracked vehicles.
 
 > `vehicle_detection/pipeline.py` in `process` method starting on `line 170` and `vehicle_detection/vehicle.py` in the `check_detected` method.
 
-# Bounding Box
+##### Bounding Box
 
 For all vehicles that meet the thresholding criteria, a bounding box is drawn.  In addition the width/height and bounding box are averaged over a few frames to provide a smoother bounding box.  
 
