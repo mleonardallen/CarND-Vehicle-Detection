@@ -58,19 +58,23 @@ Note: The `skimage.hog()` provided a great way to visualise the features, but in
 
 In determining which features and color spaces to leverage, I considered two factors: prediction accuracy and time to extract features.  Below are my results after training each feature individually with a non-optimized classifier, and looking at feature selection performance within my pipeline.
 
+| Feature    | Feature Extraction on 1000 64x64 images | Test Accuracy |
+| ---------- | -----:| ----:|
+| HOG        | 0.12s | 0.97 |
+| Spatial    | 0.1s  | 0.97 |
+| Color Hist | 0.5s  | 0.95 |
+
+I opted to remove the color histogram features due to the added cost of feature extraction and relatively little value compared with the other two features.
+
+##### HOG Parameters
+
 | Parameter    | Chosen Value | Reasoning |
 | ------------ | -----:|:--------- |
 | orientations | 9     | Lowering the orientation bins down to 6 improved the speed for hog feature extraction, but I felt that the cost to accuracy was too much.  Improvements to testing accuracy plateaued at 9 bins.  Increasing beyond 9 increased time needed for feature extraction. |
 | pixels per cell | 8 | I tried 8 and 16 here.  From my visualization I can see that 16 pixels per cell does not capture the features of a vehicle. |
 | cells per block | 2 | 2 cells seems like a reasonable number here to capture most features of a car, break lights, license plate, etc.  |
 
-I opted to remove the color histogram features due to the added cost of feature extraction and relatively little value compared with the other two features.
-
-| Feature    | Feature Extraction on 1000 64x64 images | Test Accuracy |
-| ---------- | -----:| ----:|
-| HOG        | 0.12s | 0.97 |
-| Spatial    | 0.1s  | 0.97 |
-| Color Hist | 0.5s  | 0.95 |
+##### Color Spaces
 
 Next, I looked at updating color spaces when combining HOG and Spatial features.  After training my classifier and measuring the accuracy with each combination of color spaces, I got the best results by using `YCrCB` for HOG features and a separate color space for Color Spatial features.  My intuition is that one color space was able to pick up on features that the other missed.
 
