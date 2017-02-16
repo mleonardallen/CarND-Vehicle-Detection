@@ -55,15 +55,15 @@ Note: The `skimage.hog()` provided a great way to visualise the features, but in
 
 ####2. Explain how you settled on your final choice of HOG parameters.
 
+In determining which features and color spaces to leverage, I considered two factors: prediction accuracy and time to extract features.  Below are my results after training each feature individually with a non-optimized classifier, and looking at feature selection performance within my pipeline.
+
+I opted to remove the color histogram features due to the added cost of feature extraction and relatively little value compared with the other two features.
+
 | Parameter    | Chosen Value | Reasoning |
 | ------------ | -----:|:--------- |
 | orientations | 9     | Lowering the orientation bins down to 6 improved the speed for hog feature extraction, but I felt that the cost to accuracy was too much.  Improvements to testing accuracy plataued at 9 bins.  Increasing beyond 9 increased time needed for feature extraction. |
 | pixels per cell | 8 | TODO |
 | cells per block | 2 | TODO |
-
-####3. Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).
-
-In determining which features and color spaces to leverage, I considered two factors: prediction accuracy and time to extract features.  Below are my results after training each feature individually with a non-optimized classifier, and looking at feature selection performance within my pipeline.
 
 | Feature    | Feature Extraction on 1000 64x64 images | Prediction Accuracy |
 | ---------- | -----:| ----:|
@@ -71,14 +71,16 @@ In determining which features and color spaces to leverage, I considered two fac
 | Spatial    | 0.1s  | 0.97 |
 | Color Hist | 0.5s  | 0.95 |
 
-I opted to remove the color histogram features due to the added cost of feature extraction and relatively little value compared with the other two features.
-
-Next, I looked at updating color spaces when combining HOG and Spatial features.  After training my classifier and measuring the accuracy with each combination of color spaces, I decided I got the best accuracy with the following combination.  I did end up using two separate color spaces.  My intuition is that one color space was able to pick up on features that the other missed.  For what color spaces to include, I decided to not limit the channels for two reasons.  My first reason is because the features have very little overhead in extracting. Secondly, I opted to use a decision tree family classifier, which do not suffer from the curse of dimensionality due to their implicit ability to do feature selection.  Because of this, I was not worried about the number of features generated.
+Next, I looked at updating color spaces when combining HOG and Spatial features.  After training my classifier and measuring the accuracy with each combination of color spaces, I got the best results by using `YCrCB` for HOG features and a separate color space for Color Spatial features.  My intuition is that one color space was able to pick up on features that the other missed.
 
 | Feature | Color Space | Channels |
 | ------- | ----------- | -------- |
 | HOG     | YCrCB       | ALL      |
 | Spatial | YUV         | ALL      |
+
+For what color spaces to include, I decided to not limit the channels for two reasons.  My first reason is because the features have very little overhead in extracting after optimization. Secondly, I opted to use a decision tree family classifier, which do not suffer from the curse of dimensionality due to their implicit ability to do feature selection.  Because of this, I was not worried about the number of features generated.
+
+####3. Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).
 
 Note: To easily save my normalization, feature selection and classifier, I found it useful to wrap everything with [sklearn.pipeline.Pipeline](http://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html).
 ```
@@ -103,6 +105,7 @@ I decided to search random window positions at random scales all over the image 
 ![alt text][image3]
 
 <a name="optimization"/>
+
 ####2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
 
 ##### Accuracy
