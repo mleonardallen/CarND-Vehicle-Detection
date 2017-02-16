@@ -322,6 +322,10 @@ Another thought is you could have a classifier with less accuracy but high preci
 
 Another way to improve the speed would just be to have a better window search with a reduced number of windows.  Perhaps, it would even be okay to run the window search on sections of the image per each frame.  For example, on frame 1 search the leftmost portion of the image, and on frame 2, move over just a little.  Since there are several frames per second, the search probably isn't needed for every section of the image at every frame.
 
+##### False Positives
+
+In the end I still had a few false positives.  I think more hard negative mining could improve this.
+
 ##### Label Method
 My Pipeline would notably fail in heavy traffic with many cars.  I can imagine that the current label method would create one big blob as a single detection.  Because of this, I think a more robust pipeline might just use the heatmaps to get more accurate measurements of individual detections.
 
