@@ -35,7 +35,8 @@ I start by reading in all the `vehicle` and `non-vehicle` images.
 
 Here is an example of one of each of the `vehicle` and `non-vehicle` classes:
 
-TODO
+![Car](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/examples/image0113.png)
+![Not Car](https://github.com/mleonardallen/CarND-Vehicle-Detection/blob/master/examples/image1486.png)
 
 For all `Vehicle` and `Not Vehicle` images in the dataset, I extract features using the `single_img_features` method.
 
