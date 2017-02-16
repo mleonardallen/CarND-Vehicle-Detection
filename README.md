@@ -82,18 +82,50 @@ For what color spaces to include, I decided to not limit the channels for two re
 
 ####3. Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).
 
-Note: To easily save my normalization, feature selection and classifier, I found it useful to wrap everything with [sklearn.pipeline.Pipeline](http://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html).
+After extracting features for all of the `Vehicle` and `Non-Vehicle` as described above, I then prepare to train my classifier.
+
+> `vehicle_detection/model.py`, method `fit`
+
+Before training the classifier, I split the data into training and testing datasets using `sklearn.model_selection.train_test_split`.  The test dataset is witheld so we can verify the trained model can generalize against unseen data.
+
+> `vehicle_detection/model.py`, method `fit` on `line 101`
+
+After separating my data into train and test datasets, I then put together my training pipeline which consists of a classifier, feature scaling, and feature selection.
+
+Note: To easily run the entire pipeline, I found it useful to wrap everything with [sklearn.pipeline.Pipeline](http://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html).
+
 ```
 self.pipeline = Pipeline([
     ('scaler', StandardScaler(with_mean=True, with_std=True)),
-    ('features', SelectPercentile(percentile=20))
+    ('features', SelectPercentile(percentile=30))
     ('clf', clf)
 ])
+```
 
-// ...
+Starting with my classifier, I initially experimented with the SVM classifier.  To tune my model, I leveraged `GridSearchCV` with 10-fold cross validation.  Parameters searched are included below.
 
+| Parameter | Values | Best |
+| --------- | ------ | ---- |
+| kernel    | linear, rbf | rbf |
+| gamma     | auto, 0.1, 0.001, 0.0001 | 0.001 |
+| C         | 1, 10, 100, 1000 | 100 |
+
+> `vehicle_detection/model.py`, method `fit` on `line 103`
+
+Note: The above code is commented out because I opted to use a `RandomForestClassifer` in the end.  See the section on [optimiazation](#optimization).
+
+My classifier is then trained on the training dataset by calling the `fit` method of the `pipeline`.  The pipeline begins the fitting process by using the StandardScaler to normalize the data with zero mean and unit variance.  After normalization, `sklearn.feature_slection.SelectPercentile` removes all but 30% of the highest scoring features (Scored using ANOVA f values).
+
+> `vehicle_detection/model.py`, method `fit` on `line 125`
+
+After training, I then evaluate the performance on the test dataset.
+
+> `vehicle_detection/model.py`, method `fit` on `line 136`
+
+The trained pipeline is then saved.  Storing the entire pipeline this way allows be to use the same feature scaler, feature selection, and model on my vehicle detection pipeline later.
+
+```
 pickle.dump(self.pipeline, open("pipeline.pkl", "wb"))
-
 ```
 
 ###Sliding Window Search
