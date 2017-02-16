@@ -56,7 +56,7 @@ Note: The `skimage.hog()` provided a great way to visualise the features, but in
 
 ####2. Explain how you settled on your final choice of HOG parameters.
 
-In determining which features and color spaces to leverage, I considered two factors: prediction accuracy and time to extract features.  Below are my results after training each feature individually with a non-optimized classifier, and looking at feature selection performance within my pipeline.
+In determining which features and color spaces to leverage, I considered two factors: test accuracy and time to extract features.  Below are my results after training each feature individually with a non-optimized classifier, and looking at feature selection performance within my pipeline.
 
 | Feature    | Feature Extraction on 1000 64x64 images | Test Accuracy |
 | ---------- | -----:| ----:|
