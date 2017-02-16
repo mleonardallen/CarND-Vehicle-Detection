@@ -60,8 +60,8 @@ In determining which features and color spaces to leverage, I considered two fac
 | Parameter    | Chosen Value | Reasoning |
 | ------------ | -----:|:--------- |
 | orientations | 9     | Lowering the orientation bins down to 6 improved the speed for hog feature extraction, but I felt that the cost to accuracy was too much.  Improvements to testing accuracy plateaued at 9 bins.  Increasing beyond 9 increased time needed for feature extraction. |
-| pixels per cell | 8 | I tried 8 and 16 here.  I found the performance gain pretty nominal with the added resolution |
-| cells per block | 2 | TODO  |
+| pixels per cell | 8 | I tried 8 and 16 here.  From my visualization I can see that 16 pixels per cell does not capture the features of a vehicle. |
+| cells per block | 2 | 2 cells seems like a reasonable number here to capture most features of a car, break lights, license plate, etc.  |
 
 I opted to remove the color histogram features due to the added cost of feature extraction and relatively little value compared with the other two features.
 
