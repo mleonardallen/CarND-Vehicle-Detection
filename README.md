@@ -83,7 +83,7 @@ Next, I looked at updating color spaces when combining HOG and Spatial features.
 | Feature | Color Space | Channels |
 | ------- | ----------- | -------- |
 | HOG     | YCrCB       | ALL      |
-| Spatial | YUV         | ALL      |
+| Spatial | HSV         | ALL      |
 
 For what color spaces to include, I decided to not limit the channels for two reasons.  My first reason is because the features have very little overhead in extracting after optimization. Secondly, I opted to use a decision tree family classifier, which do not suffer from the curse of dimensionality due to their implicit ability to do feature selection.  Because of this, I was not worried about the number of features generated.
 
